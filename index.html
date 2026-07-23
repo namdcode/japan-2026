@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F7F1E8">
+<title>Japon · Automne 2026</title>
+<style>
+  :root{
+    --bg:#F7F1E8;
+    --card:#FFFFFF;
+    --ink:#241B13;
+    --sub:#8C7C6D;
+    --momiji:#C2402A;      /* érable */
+    --kaki:#DE8A3B;        /* kaki / persimmon */
+    --icho:#D3A63C;        /* ginkgo doré */
+    --pin:#6E7F50;         /* pin, notes nature */
+    --umi:#3F7286;         /* mer, ferry */
+    --hairline:rgba(70,45,25,.10);
+    --shadow:0 1px 2px rgba(60,35,15,.05), 0 8px 24px rgba(60,35,15,.08);
+    --radius:18px;
+    --spring:cubic-bezier(.32,1.25,.4,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+    font-size:16px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- Header sticky ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:50;
+    backdrop-filter:saturate(180%) blur(18px);
+    -webkit-backdrop-filter:saturate(180%) blur(18px);
+    background:rgba(247,241,232,.78);
+    border-bottom:1px solid var(--hairline);
+    padding:10px 16px calc(10px);
+    padding-top:calc(10px + env(safe-area-inset-top));
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    transform:translateY(-100%); transition:transform .45s var(--spring);
+  }
+  .topbar.visible{transform:translateY(0)}
+  .topbar .t-title{font-weight:700; font-size:16px; letter-spacing:-.02em}
+  .pill{
+    font-size:12px; font-weight:600; color:#fff;
+    background:linear-gradient(135deg,var(--momiji),var(--kaki));
+    padding:5px 11px; border-radius:999px; white-space:nowrap;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative; overflow:hidden;
+    padding:calc(52px + env(safe-area-inset-top)) 22px 30px;
+    background:linear-gradient(178deg,#F3E7D5 0%,#F7F1E8 78%);
+  }
+  .hero .kicker{
+    font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--momiji); margin-bottom:8px;
+    opacity:0; animation:rise .7s var(--spring) .1s forwards;
+  }
+  .hero h1{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+    font-size:clamp(34px,9vw,44px); font-weight:800; letter-spacing:-.035em; line-height:1.05;
+    opacity:0; animation:rise .7s var(--spring) .2s forwards;
+  }
+  .hero h1 .accent{
+    background:linear-gradient(100deg,var(--momiji) 10%,var(--kaki) 55%,var(--icho) 95%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero .sub{
+    margin-top:10px; color:var(--sub); font-size:15px;
+    opacity:0; animation:rise .7s var(--spring) .32s forwards;
+  }
+  .hero .stats{
+    display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;
+    opacity:0; animation:rise .7s var(--spring) .44s forwards;
+  }
+  .chip{
+    background:rgba(255,255,255,.75); border:1px solid var(--hairline);
+    border-radius:999px; padding:7px 13px; font-size:13px; font-weight:600;
+    display:flex; align-items:center; gap:6px;
+    backdrop-filter:blur(8px);
+  }
+  .chip .dot{width:7px;height:7px;border-radius:50%}
+  #countdown-chip{background:var(--ink); color:#F7F1E8; border-color:transparent}
+
+  /* feuilles */
+  .leaf{position:absolute; top:-40px; pointer-events:none; will-change:transform; opacity:.85; z-index:1}
+  .leaf svg{display:block; filter:drop-shadow(0 2px 3px rgba(90,40,10,.15))}
+  @keyframes fall{
+    0%{transform:translate3d(0,-8vh,0) rotate(0deg)}
+    100%{transform:translate3d(var(--drift,30px),46vh,0) rotate(var(--spin,300deg))}
+  }
+  @keyframes sway{
+    0%,100%{margin-left:0}
+    50%{margin-left:var(--sway,18px)}
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* ---------- Segmented control ---------- */
+  .seg-wrap{
+    position:sticky; top:calc(50px + env(safe-area-inset-top)); z-index:40;
+    padding:8px 16px 12px;
+    background:linear-gradient(var(--bg) 65%,rgba(247,241,232,0));
+  }
+  .seg{
+    position:relative; display:grid; grid-template-columns:repeat(4,1fr);
+    background:rgba(120,90,60,.10); border-radius:13px; padding:3px;
+  }
+  .seg-pill{
+    position:absolute; top:3px; left:3px; height:calc(100% - 6px);
+    width:calc(25% - 1.5px);
+    background:var(--card); border-radius:10px; box-shadow:0 1px 4px rgba(60,35,15,.16);
+    transition:transform .4s var(--spring);
+  }
+  .seg button{
+    position:relative; z-index:1; appearance:none; border:0; background:none;
+    font:inherit; font-size:13px; font-weight:600; color:var(--sub);
+    padding:8px 2px; border-radius:10px; cursor:pointer; transition:color .25s;
+  }
+  .seg button.active{color:var(--ink)}
+
+  main{max-width:640px; margin:0 auto; padding:4px 16px 0}
+  .view{display:none; animation:rise .45s var(--spring)}
+  .view.active{display:block}
+
+  h2.section{
+    font-size:22px; font-weight:800; letter-spacing:-.03em; margin:18px 4px 12px;
+  }
+  .section small{display:block; font-size:13px; font-weight:500; color:var(--sub); margin-top:2px}
+
+  /* ---------- Timeline ---------- */
+  .timeline{position:relative; padding-left:26px}
+  .timeline::before{
+    content:""; position:absolute; left:9px; top:14px; bottom:14px; width:2px;
+    background:linear-gradient(var(--icho),var(--kaki) 30%,var(--momiji) 70%,var(--pin));
+    border-radius:2px; opacity:.5;
+  }
+  .stage{position:relative; margin-bottom:10px}
+  .stage::before{
+    content:""; position:absolute; left:-23px; top:22px; width:12px; height:12px;
+    border-radius:50%; background:var(--stage-color,var(--momiji));
+    box-shadow:0 0 0 3px var(--bg), 0 0 0 4.5px var(--stage-color,var(--momiji));
+  }
+  .stage.now::before{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--stage-color)}50%{box-shadow:0 0 0 3px var(--bg),0 0 0 9px rgba(194,64,42,.25)}}
+
+  .card{
+    background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+    border:1px solid rgba(255,255,255,.6); overflow:hidden;
+    opacity:0; transform:translateY(18px);
+    transition:opacity .55s ease, transform .55s var(--spring);
+  }
+  .card.revealed{opacity:1; transform:none}
+  .stage-head{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:14px 14px; background:none; border:0; font:inherit; text-align:left; cursor:pointer;
+  }
+  .stage-emoji{
+    width:42px;height:42px;border-radius:12px;flex:none;
+    display:flex;align-items:center;justify-content:center;font-size:21px;
+    background:color-mix(in srgb, var(--stage-color) 14%, white);
+  }
+  .stage-info{flex:1; min-width:0}
+  .stage-info .name{font-weight:700; font-size:16.5px; letter-spacing:-.02em}
+  .stage-info .meta{font-size:13px; color:var(--sub); margin-top:1px}
+  .nights{
+    font-size:12px; font-weight:700; color:var(--stage-color);
+    background:color-mix(in srgb, var(--stage-color) 12%, white);
+    padding:4px 9px; border-radius:999px; white-space:nowrap;
+  }
+  .chev{flex:none; color:#C8BBAD; transition:transform .35s var(--spring)}
+  .stage.open .chev{transform:rotate(90deg)}
+  .stage-body{
+    max-height:0; overflow:hidden; transition:max-height .5s var(--spring);
+  }
+  .stage-body-inner{padding:2px 16px 16px; border-top:1px solid var(--hairline)}
+  .day{display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:14.5px}
+  .day:last-child{border-bottom:0}
+  .day b.d{
+    flex:none; width:52px; font-size:12px; font-weight:700; color:var(--sub);
+    text-transform:uppercase; letter-spacing:.03em; padding-top:2px;
+  }
+  .day p{flex:1}
+  .tag{
+    display:inline-block; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:6px;
+    margin-left:4px; vertical-align:1px;
+  }
+  .tag.warn{background:#FBEEDC; color:#A6650F}
+  .tag.top{background:#F9E4DF; color:var(--momiji)}
+
+  .transport{
+    display:flex; align-items:center; gap:8px; margin:4px 0 14px 2px;
+    font-size:13px; font-weight:600; color:var(--sub);
+  }
+  .transport .t-icon{font-size:15px}
+  .transport.ferry{color:var(--umi)}
+  .transport .t-line{flex:none; width:26px; border-top:2px solid currentColor; opacity:.4}
+  .transport.ferry .t-line{border-top-style:dashed}
+
+  /* ---------- Logements ---------- */
+  .stay{display:flex; gap:12px; padding:15px 15px; align-items:flex-start; margin-bottom:10px}
+  .stay .stage-emoji{margin-top:2px}
+  .stay .name{font-weight:700; font-size:15.5px}
+  .stay .dates{font-size:12.5px; font-weight:700; color:var(--stage-color); margin-top:1px}
+  .stay .addr{font-size:13.5px; color:var(--sub); margin-top:4px}
+  .stay a.map{
+    display:inline-flex; align-items:center; gap:5px; margin-top:9px;
+    font-size:13px; font-weight:650; color:var(--umi); text-decoration:none;
+    background:color-mix(in srgb, var(--umi) 10%, white);
+    padding:6px 12px; border-radius:999px;
+  }
+  .banner-ok{
+    display:flex; gap:10px; align-items:center;
+    background:linear-gradient(120deg,#EDF2E4,#F5EFDD);
+    border:1px solid rgba(110,127,80,.25); border-radius:var(--radius);
+    padding:13px 15px; font-size:14px; font-weight:600; color:#4E5C36; margin-bottom:14px;
+  }
+
+  /* ---------- Checklist ---------- */
+  .todo{display:flex; gap:12px; padding:14px 15px; margin-bottom:10px; align-items:flex-start; cursor:pointer}
+  .checkbox{
+    flex:none; width:26px; height:26px; border-radius:50%; margin-top:1px;
+    border:2px solid #D8CBBB; display:flex; align-items:center; justify-content:center;
+    transition:all .3s var(--spring); color:transparent;
+  }
+  .todo.done .checkbox{background:var(--pin); border-color:var(--pin); color:#fff}
+  .todo .tt{font-weight:700; font-size:15px; transition:opacity .3s}
+  .todo .td{font-size:13.5px; color:var(--sub); margin-top:3px}
+  .todo.done .tt,.todo.done .td{opacity:.45}
+  .todo.done .tt{text-decoration:line-through}
+  .deadline{
+    display:inline-block; margin-top:7px; font-size:11.5px; font-weight:700;
+    background:#F9E4DF; color:var(--momiji); padding:3px 9px; border-radius:999px;
+  }
+  .deadline.soft{background:#F3ECD9; color:#9A7B22}
+  .progress-wrap{margin:4px 4px 16px}
+  .progress-label{font-size:13px; font-weight:600; color:var(--sub); margin-bottom:7px}
+  .progress{height:8px; background:rgba(120,90,60,.12); border-radius:999px; overflow:hidden}
+  .progress i{
+    display:block; height:100%; border-radius:999px;
+    background:linear-gradient(90deg,var(--icho),var(--kaki),var(--momiji));
+    transition:width .6s var(--spring);
+  }
+
+  /* ---------- Infos ---------- */
+  .info-card{padding:16px 16px; margin-bottom:12px}
+  .info-card h3{font-size:15.5px; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .info-card ul{list-style:none}
+  .info-card li{
+    font-size:14px; padding:7px 0 7px 18px; position:relative; border-bottom:1px solid var(--hairline);
+  }
+  .info-card li:last-child{border-bottom:0}
+  .info-card li::before{
+    content:""; position:absolute; left:2px; top:14px; width:6px; height:6px; border-radius:50%;
+    background:var(--kaki);
+  }
+
+  footer{
+    text-align:center; color:#B5A896; font-size:12.5px; padding:28px 20px 8px;
+  }
+  footer .torii{font-size:20px; display:block; margin-bottom:6px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important; transition:none!important}
+    .hero .kicker,.hero h1,.hero .sub,.hero .stats{opacity:1}
+    .card{opacity:1; transform:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <span class="t-title">🍁 Japon 2026</span>
+  <span class="pill" id="topbar-count">13 nov → 4 déc</span>
+</div>
+
+<header class="hero" id="hero">
+  <div id="leaves"></div>
+  <div class="kicker">2ᵉ voyage · 5 voyageurs</div>
+  <h1>Japon,<br><span class="accent">saison des momiji</span></h1>
+  <p class="sub">13 novembre → 4 décembre 2026 · 21 nuits<br>Tokyo · Kyushu · Busan · Setouchi · Kansai</p>
+  <div class="stats">
+    <span class="chip" id="countdown-chip">✈️ <span id="countdown">…</span></span>
+    <span class="chip"><span class="dot" style="background:var(--momiji)"></span>8 étapes</span>
+    <span class="chip"><span class="dot" style="background:var(--umi)"></span>2 ferries</span>
+    <span class="chip"><span class="dot" style="background:var(--icho)"></span>Tout est réservé ✓</span>
+  </div>
+</header>
+
+<div class="seg-wrap">
+  <nav class="seg" id="seg">
+    <div class="seg-pill" id="seg-pill"></div>
+    <button class="active" data-view="itineraire">Itinéraire</button>
+    <button data-view="logements">Logements</button>
+    <button data-view="checklist">À faire</button>
+    <button data-view="infos">Infos</button>
+  </nav>
+</div>
+
+<main>
+
+  <!-- ============ ITINÉRAIRE ============ -->
+  <section class="view active" id="view-itineraire">
+    <h2 class="section">Jour par jour <small>Touchez une étape pour le détail</small></h2>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <!-- ============ LOGEMENTS ============ -->
+  <section class="view" id="view-logements">
+    <h2 class="section">Nos logements <small>20 nuits d'hôtel + 1 ferry de nuit — tout est réservé</small></h2>
+    <div class="banner-ok">🎉 <span>Hébergements confirmés du 13/11 au 4/12, aucune nuit manquante.</span></div>
+    <div id="stays"></div>
+  </section>
+
+  <!-- ============ CHECKLIST ============ -->
+  <section class="view" id="view-checklist">
+    <h2 class="section">Encore à réserver <small>Cochez au fil des réservations (à 5, on s'y prend tôt)</small></h2>
+    <div class="progress-wrap">
+      <div class="progress-label" id="progress-label">0 / 0</div>
+      <div class="progress"><i id="progress-bar" style="width:0%"></i></div>
+    </div>
+    <div id="todos"></div>
+  </section>
+
+  <!-- ============ INFOS ============ -->
+  <section class="view" id="view-infos">
+    <h2 class="section">Bon à savoir <small>Saison, transports & logistique de groupe</small></h2>
+    <div id="infos"></div>
+  </section>
+
+</main>
+
+<footer>
+  <span class="torii">⛩️</span>
+  Itinéraire du groupe · v2 · mis à jour juillet 2026
+</footer>
+
+<script>
+/* =================== DONNÉES =================== */
+const STAGES = [
+  {
+    id:"tokyo1", name:"Tokyo — arrivée", emoji:"🗼", color:"var(--momiji)", cssColor:"#C2402A",
+    dates:"ven 13 → mar 17 nov", nights:"4 nuits", start:"2026-11-13", end:"2026-11-17",
+    lodging:"Mi-Kan design",
+    days:[
+      ["Ven 13","Atterrissage Haneda 14h25 · installation, dîner tranquille (jetlag)."],
+      ["Sam 14","Tokyo libre — quartiers pas encore vus au 1ᵉʳ voyage."],
+      ["Dim 15","Kamakura : Grand Bouddha, Hasedera, illuminations possibles."],
+      ["Lun 16","PokéPark KANTO (Yomiuriland) — en semaine = plus calme. Keio depuis Shinjuku ~30 min. <span class='tag warn'>billets loterie</span>"]
+    ],
+    next:{icon:"✈️",text:"Vol Tokyo → Fukuoka ~1h45, puis minivan → Yufuin ~2h",cls:""}
+  },
+  {
+    id:"yufuin", name:"Yufuin (Kyushu)", emoji:"♨️", color:"var(--kaki)", cssColor:"#DE8A3B",
+    dates:"mar 17 → jeu 19 nov", nights:"2 nuits", start:"2026-11-17", end:"2026-11-19",
+    lodging:"662 Kawakita, Yufuin-chō, Yufu (Ōita)",
+    days:[
+      ["Mar 17","Arrivée après-midi · lac Kinrin, rue Yunotsubo (boutiques ferment tôt), vue mont Yufu · soir onsen. <span class='tag top'>onsen</span>"],
+      ["Mer 18","Rando du Kujū depuis Makinoto-tōge (~40 min de route, Yamanami Hwy) · 4-5h, froid possible. Option après-rando : Kurokawa Onsen (+25 min) & rotenburo-hopping (tegata ~1 500 ¥). <span class='tag top'>rando</span>"],
+      ["Jeu 19","Retour Fukuoka. Plan A direct ~2h · Plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé). Restitution du minivan."]
+    ],
+    next:{icon:"🚗",text:"Boucle minivan retour → Fukuoka",cls:""}
+  },
+  {
+    id:"fukuoka", name:"Fukuoka", emoji:"🍜", color:"var(--icho)", cssColor:"#D3A63C",
+    dates:"jeu 19 → sam 21 nov", nights:"2 nuits", start:"2026-11-19", end:"2026-11-21",
+    lodging:"Nishinakasu 1, Chūō-ku — au cœur des yatai !",
+    days:[
+      ["Jeu 19","Après-midi Tenjin / parc Ōhori · soir yatai de Nakasu (à pied du logement). <span class='tag top'>food</span>"],
+      ["Ven 20","Dazaifu Tenmangū (~35 min, beau en automne) · ramen de Hakata, motsunabe, mentaiko."],
+      ["Sam 21","Matin libre · ferry pour Busan en début d'après-midi (terminal à ~10 min)."]
+    ],
+    next:{icon:"⛴️",text:"Ferry Hakata → Busan · départ ~12h30, arrivée ~18h30",cls:"ferry"}
+  },
+  {
+    id:"busan", name:"Busan, Corée", emoji:"🇰🇷", color:"var(--umi)", cssColor:"#3F7286",
+    dates:"sam 21 → lun 23 nov", nights:"2 nuits", start:"2026-11-21", end:"2026-11-24",
+    lodging:"82 Bongnaenaru-ro, Yeongdo-gu",
+    days:[
+      ["Sam 21","Arrivée 18h30 · soirée Nampo / marché de Jagalchi (juste en face du pont)."],
+      ["Dim 22","Gamcheon Culture Village · Haedong Yonggungsa (temple en bord de mer) · falaises de Taejongdae ou sentier d'Igidae."],
+      ["Lun 23","Journée Busan (férié japonais passé hors Japon 😎) · ferry de nuit ~22h30 → Hakata. <span class='tag warn'>nuit à bord</span>"]
+    ],
+    next:{icon:"🌙",text:"Ferry de nuit Busan → Hakata · arrivée mar 24 ~7h30, puis shinkansen ~1h30",cls:"ferry"}
+  },
+  {
+    id:"hiroshima", name:"Hiroshima + Miyajima", emoji:"⛩️", color:"var(--momiji)", cssColor:"#C2402A",
+    dates:"mar 24 → jeu 26 nov", nights:"2 nuits", start:"2026-11-24", end:"2026-11-26",
+    lodging:"Tanakamachi 2-28, Naka-ku — plein centre",
+    days:[
+      ["Mar 24","Parc & Musée du Mémorial de la Paix, Dôme de Genbaku · soir okonomiyaki (Okonomimura à deux pas), izakaya."],
+      ["Mer 25","Miyajima : Itsukushima & torii flottant (marées !), Momijidani au pic, Daishō-in · mont Misen à pied (~2h) ou téléphérique · huîtres grillées, anago-meshi. <span class='tag top'>momiji</span>"]
+    ],
+    next:{icon:"🚄",text:"Shinkansen Hiroshima → Okayama ~40 min",cls:""}
+  },
+  {
+    id:"okayama", name:"Okayama + Kurashiki", emoji:"🏮", color:"var(--kaki)", cssColor:"#DE8A3B",
+    dates:"jeu 26 → ven 27 nov", nights:"1 nuit", start:"2026-11-26", end:"2026-11-27",
+    lodging:"Kuwadachō 17-10, Kita-ku, Okayama",
+    days:[
+      ["Jeu 26","Bagages déposés → train local 15 min → Kurashiki : quartier Bikan (canal, entrepôts Edo), musée Ōhara, barque · soir : Kōraku-en (~15 min à pied), illuminations d'automne à vérifier. <span class='tag top'>canal</span>"]
+    ],
+    next:{icon:"🚄",text:"Okayama → Himeji ~20 min · château + Kōko-en (consigne) → Osaka ~40 min",cls:""}
+  },
+  {
+    id:"osaka", name:"Kansai — base Osaka", emoji:"🐙", color:"var(--icho)", cssColor:"#D3A63C",
+    dates:"ven 27 nov → mer 2 déc", nights:"5 nuits", start:"2026-11-27", end:"2026-12-02",
+    lodging:"Ebisuhigashi 1-14-11, Naniwa-ku — pied de la Tsūtenkaku (Shinsekai)",
+    days:[
+      ["Ven 27","Arrêt Himeji le matin (château) · arrivée fin d'après-midi · dîner Shinsekai (kushikatsu) ou Dōtonbori."],
+      ["Sam 28","Nara en Kintetsu direct ~40 min (Tōdai-ji, daims, ½ journée) · retour Osaka food."],
+      ["Dim 29","Osaka : Dōtonbori, château, Kuromon · 1ʳᵉ approche Kyoto possible."],
+      ["Lun 30","USJ (jour de semaine) — Express Pass conseillé. <span class='tag warn'>réserver</span>"],
+      ["Mar 1ᵉʳ","Kyoto au pic du momiji : Tōfuku-ji (Keihan direct), Arashiyama, Higashiyama — départ matinal ! <span class='tag top'>momiji</span>"],
+      ["Repos","1 jour tranquille intégré, interchangeable selon la météo."]
+    ],
+    next:{icon:"🚄",text:"Shinkansen Osaka → Tokyo ~2h15 (ou vol ~1h30)",cls:""}
+  },
+  {
+    id:"tokyo2", name:"Tokyo — fin & départ", emoji:"🛫", color:"var(--pin)", cssColor:"#6E7F50",
+    dates:"mer 2 → ven 4 déc", nights:"2 nuits", start:"2026-12-02", end:"2026-12-04",
+    lodging:"Asahi-chō 4-16, Haneda (Ōta-ku) — à 2 stations Keikyū de l'aéroport",
+    days:[
+      ["Mer 2","Trajet le matin · après-midi/soir shopping & chill (Keikyū → Shinagawa ~25 min)."],
+      ["Jeu 3","Derniers quartiers, souvenirs, repos · valises bouclées."],
+      ["Ven 4","Vol Haneda 8h25 → à l'aéroport vers 6h15 (Keikyū ou taxi ~10-15 min). 🇫🇷"]
+    ],
+    next:null
+  }
+];
+
+const TODOS = [
+  {t:"PokéPark KANTO — 5 billets, même créneau (lun 16/11)", d:"Loterie ~3 mois avant sur ticket-en.pokepark-kanto.co.jp, remise en vente ~2 mois avant. Ça part très vite.", dl:"⏰ loterie ≈ mi-août 2026", hot:true},
+  {t:"Ferry Hakata ⇄ Busan (Camellia Line)", d:"Aller sam 21/11 (jour), retour lun 23/11 (nuit). Economy Bargain = moins cher mais non remboursable — vérifier les conditions.", dl:"Dès l'ouverture des ventes", hot:true},
+  {t:"Minivan 7-8 places à Fukuoka (17–19/11)", d:"Toyota Noah/Voxy ou Nissan Serena, boucle A/R Fukuoka. Demander la carte ETC pour les péages.", dl:null, hot:false},
+  {t:"Traductions JAF des permis français", d:"Obligatoire pour conduire au Japon (l'IDP ne suffit pas pour la France). Un par conducteur.", dl:"Avant le départ", hot:false},
+  {t:"Universal Studios Japan (lun 30/11)", d:"Billets datés + Express Pass conseillé en haute saison.", dl:null, hot:false},
+  {t:"Sièges shinkansen ×5", d:"Hakata→Hiroshima · Hiroshima→Okayama · Okayama→Himeji→Osaka · Osaka→Tokyo. Réserver ensemble.", dl:null, hot:false},
+  {t:"Restos & izakaya pour 5", d:"Les comptoirs plafonnent souvent à 4 → viser des tables, réserver les adresses prisées (Kyoto/Osaka surtout).", dl:null, hot:false}
+];
+
+const INFOS = [
+  {icon:"🍁", title:"Momiji — on est pile dessus", items:[
+    "Kyushu (Yufuin, vallées) : pic fin novembre.",
+    "Miyajima / Momijidani : mi-fin novembre → parfait le 25/11.",
+    "Kyoto & Kansai : pic fin nov – début déc → parfait en fin de séjour.",
+    "Lac Kinrin (Yufuin) : brumes au lever du jour par matin froid, ça vaut le réveil."
+  ]},
+  {icon:"🧣", title:"Météo & équipement", items:[
+    "Froid en altitude et le soir (Kujū, mont Misen) : couches + coupe-vent.",
+    "Neige précoce possible au sommet du Kujū → traction légère utile.",
+    "Cratère de l'Aso (Nakadake) fermé en 2026 — points de vue & prairies ouverts."
+  ]},
+  {icon:"🎌", title:"Le coup du férié", items:[
+    "Sam 21 – lun 23 nov = Kinrō Kansha no Hi, LE pic de foule de l'année.",
+    "On le passe entièrement à Busan → zéro impact.",
+    "Résultat : Miyajima, Hiroshima et Kyoto en semaine post-férié, bien plus calmes."
+  ]},
+  {icon:"🚄", title:"Transports en bref", items:[
+    "Tokyo → Fukuoka : avion ~1h45 (mar 17 au matin).",
+    "Kyushu : minivan, boucle Fukuoka → Yufuin → Kujū/Kurokawa → Fukuoka.",
+    "Hakata ⇄ Busan : ferry (jour à l'aller, nuit au retour, arrivée ~7h30).",
+    "Depuis Osaka/Ebisuhigashi : Nara ~40 min (Kintetsu direct), Kyoto ~45-60 min, USJ ~25 min.",
+    "PokéPark : ligne Keio depuis Shinjuku, non couverte par le JR Pass."
+  ]},
+  {icon:"👥", title:"Logistique à 5", items:[
+    "Toujours réserver 5 places ensemble (shinkansen, restos, activités).",
+    "2 chambres par étape déjà prévues côté logements.",
+    "Prévoir un pot commun (péages, essence, courses konbini) pour simplifier."
+  ]}
+];
+
+/* =================== RENDER =================== */
+const mapsUrl = a => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(a);
+
+const timeline = document.getElementById("timeline");
+STAGES.forEach((s,i)=>{
+  const wrap = document.createElement("div");
+  wrap.className = "stage";
+  wrap.style.setProperty("--stage-color", s.cssColor);
+  wrap.innerHTML = `
+    <div class="card">
+      <button class="stage-head" aria-expanded="false">
+        <span class="stage-emoji">${s.emoji}</span>
+        <span class="stage-info">
+          <span class="name">${s.name}</span>
+          <span class="meta">${s.dates}</span>
+        </span>
+        <span class="nights">${s.nights}</span>
+        <svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="stage-body">
+        <div class="stage-body-inner">
+          ${s.days.map(d=>`<div class="day"><b class="d">${d[0]}</b><p>${d[1]}</p></div>`).join("")}
+        </div>
+      </div>
+    </div>
+    ${s.next?`<div class="transport ${s.next.cls}"><span class="t-line"></span><span class="t-icon">${s.next.icon}</span><span>${s.next.text}</span></div>`:""}
+  `;
+  timeline.appendChild(wrap);
+
+  const head = wrap.querySelector(".stage-head");
+  const body = wrap.querySelector(".stage-body");
+  head.addEventListener("click",()=>{
+    const open = wrap.classList.toggle("open");
+    head.setAttribute("aria-expanded", open);
+    body.style.maxHeight = open ? body.scrollHeight + "px" : "0px";
+  });
+});
+
+/* Logements */
+const stays = document.getElementById("stays");
+STAGES.forEach(s=>{
+  if(s.id==="busan"){/* inclut ferry après */}
+  const el = document.createElement("div");
+  el.className = "card stay";
+  el.style.setProperty("--stage-color", s.cssColor);
+  el.innerHTML = `
+    <span class="stage-emoji">${s.emoji}</span>
+    <div>
+      <div class="name">${s.name}</div>
+      <div class="dates">${s.dates} · ${s.nights}</div>
+      <div class="addr">${s.lodging}</div>
+      <a class="map" href="${mapsUrl(s.lodging.replace(/—.*/,'') + (s.id==='busan'?' Busan':' Japan'))}" target="_blank" rel="noopener">📍 Ouvrir dans Plans</a>
+    </div>`;
+  stays.appendChild(el);
+  if(s.id==="busan"){
+    const f = document.createElement("div");
+    f.className = "card stay";
+    f.style.setProperty("--stage-color","#3F7286");
+    f.innerHTML = `
+      <span class="stage-emoji">🌙</span>
+      <div>
+        <div class="name">Ferry de nuit</div>
+        <div class="dates">lun 23 → mar 24 nov · 1 nuit à bord</div>
+        <div class="addr">Busan → Hakata · départ ~22h30, arrivée ~7h30 · cabines à réserver</div>
+      </div>`;
+    stays.appendChild(f);
+  }
+});
+
+/* Checklist */
+const todosEl = document.getElementById("todos");
+const state = TODOS.map(()=>false);
+function renderProgress(){
+  const done = state.filter(Boolean).length;
+  document.getElementById("progress-label").textContent = `${done} / ${TODOS.length} réservation${done>1?"s":""} faite${done>1?"s":""}`;
+  document.getElementById("progress-bar").style.width = (done/TODOS.length*100)+"%";
+}
+TODOS.forEach((t,i)=>{
+  const el = document.createElement("div");
+  el.className = "card todo";
+  el.innerHTML = `
+    <span class="checkbox"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7.5L5.5 11L12 3.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <div>
+      <div class="tt">${t.t}</div>
+      <div class="td">${t.d}</div>
+      ${t.dl?`<span class="deadline ${t.hot?'':'soft'}">${t.dl}</span>`:""}
+    </div>`;
+  el.addEventListener("click",()=>{
+    state[i]=!state[i];
+    el.classList.toggle("done",state[i]);
+    renderProgress();
+  });
+  todosEl.appendChild(el);
+});
+renderProgress();
+
+/* Infos */
+const infosEl = document.getElementById("infos");
+INFOS.forEach(c=>{
+  const el = document.createElement("div");
+  el.className = "card info-card";
+  el.innerHTML = `<h3>${c.icon} ${c.title}</h3><ul>${c.items.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  infosEl.appendChild(el);
+});
+
+/* =================== INTERACTIONS =================== */
+/* Onglets */
+const seg = document.getElementById("seg");
+const pill = document.getElementById("seg-pill");
+const tabs = [...seg.querySelectorAll("button")];
+tabs.forEach((b,i)=>{
+  b.addEventListener("click",()=>{
+    tabs.forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    pill.style.transform = `translateX(${i*100}%)`;
+    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+    const v = document.getElementById("view-"+b.dataset.view);
+    v.classList.add("active");
+    v.querySelectorAll(".card").forEach(c=>c.classList.add("revealed"));
+    window.scrollTo({top:0,behavior:"smooth"});
+  });
+});
+
+/* Topbar au scroll */
+const topbar = document.getElementById("topbar");
+const hero = document.getElementById("hero");
+window.addEventListener("scroll",()=>{
+  topbar.classList.toggle("visible", window.scrollY > hero.offsetHeight - 70);
+},{passive:true});
+
+/* Reveal au scroll */
+const io = new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("revealed"); io.unobserve(e.target);} });
+},{threshold:.08, rootMargin:"0px 0px -20px 0px"});
+document.querySelectorAll(".card").forEach(c=>io.observe(c));
+
+/* Compte à rebours + étape en cours */
+(function(){
+  const now = new Date();
+  const dep = new Date("2026-11-13T14:25:00+09:00");
+  const ret = new Date("2026-12-04T08:25:00+09:00");
+  const cd = document.getElementById("countdown");
+  const tc = document.getElementById("topbar-count");
+  if(now < dep){
+    const days = Math.ceil((dep - now)/(1000*60*60*24));
+    cd.textContent = `J−${days} avant le départ`;
+    tc.textContent = `J−${days}`;
+  } else if (now <= ret){
+    const dayN = Math.floor((now - new Date("2026-11-13T00:00:00+09:00"))/(1000*60*60*24)) + 1;
+    cd.textContent = `Jour ${dayN} du voyage 🇯🇵`;
+    tc.textContent = `Jour ${dayN}`;
+    const today = now.toISOString().slice(0,10);
+    STAGES.forEach((s,i)=>{
+      if(today >= s.start && today < s.end){
+        const el = timeline.children[i];
+        el.classList.add("now");
+        const head = el.querySelector(".stage-head");
+        head.click();
+      }
+    });
+  } else {
+    cd.textContent = "Voyage terminé 🥲 Otsukaresama !";
+  }
+})();
+
+/* Feuilles qui tombent (hero) */
+(function(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const holder = document.getElementById("leaves");
+  const colors = ["#C2402A","#DE8A3B","#D3A63C","#A8552F"];
+  const maple = c => `<svg width="22" height="22" viewBox="0 0 24 24"><path fill="${c}" d="M12 2l1.6 3.6 3.4-1.2-.8 3.5 3.8.9-2.6 2.7 2.9 2.4-3.7 1 .9 3.7-3.5-1.4L12 21l-2-3.8-3.5 1.4.9-3.7-3.7-1 2.9-2.4-2.6-2.7 3.8-.9-.8-3.5 3.4 1.2z"/></svg>`;
+  for(let i=0;i<11;i++){
+    const l = document.createElement("span");
+    l.className = "leaf";
+    l.innerHTML = maple(colors[i%colors.length]);
+    const dur = 7 + Math.random()*7;
+    const delay = Math.random()*9;
+    l.style.left = (Math.random()*96)+"%";
+    l.style.setProperty("--drift",(Math.random()*70-35)+"px");
+    l.style.setProperty("--spin",(180+Math.random()*360)+"deg");
+    l.style.setProperty("--sway",(10+Math.random()*22)+"px");
+    l.style.transform = "scale("+(0.6+Math.random()*0.7)+")";
+    l.style.animation = `fall ${dur}s linear ${delay}s infinite, sway ${dur/2.5}s ease-in-out ${delay}s infinite`;
+    holder.appendChild(l);
+  }
+})();
+</script>
+</body>
+</html>
