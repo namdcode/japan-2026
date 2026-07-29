@@ -179,13 +179,16 @@
     max-height:0; overflow:hidden; transition:max-height .5s var(--spring);
   }
   .stage-body-inner{padding:2px 16px 16px; border-top:1px solid var(--hairline)}
-  .day{display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:14.5px}
+  .day{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:14.5px}
   .day:last-child{border-bottom:0}
   .day b.d{
     flex:none; width:52px; font-size:12px; font-weight:700; color:var(--sub);
     text-transform:uppercase; letter-spacing:.03em; padding-top:2px;
   }
   .day p{flex:1}
+  .day.clickable{cursor:pointer}
+  .day.clickable:active{background:rgba(120,90,60,.06)}
+  .day-chev{flex:none; color:#C8BBAD; margin-top:3px}
   .tag{
     display:inline-block; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:6px;
     margin-left:4px; vertical-align:1px;
@@ -265,6 +268,48 @@
   }
   footer .torii{font-size:20px; display:block; margin-bottom:6px}
 
+  /* ---------- Fiche jour (sheet plein écran) ---------- */
+  .day-sheet{
+    position:fixed; inset:0; z-index:200; background:var(--bg);
+    transform:translateY(100%); transition:transform .45s var(--spring);
+    display:flex; flex-direction:column;
+  }
+  .day-sheet.open{transform:translateY(0)}
+  .day-sheet-head{
+    display:flex; align-items:center; gap:12px; flex:none;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    border-bottom:1px solid var(--hairline);
+    background:rgba(247,241,232,.92);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  }
+  .day-back{
+    flex:none; width:34px; height:34px; border-radius:50%; border:0;
+    background:rgba(120,90,60,.10); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .day-sheet-title{flex:1; min-width:0}
+  .day-sheet-title .stage-tag{font-size:12.5px; font-weight:700; color:var(--sub)}
+  .day-sheet-title .day-date{font-size:19px; font-weight:800; letter-spacing:-.02em; margin-top:1px}
+  .day-sheet-body{flex:1; overflow-y:auto; padding:6px 18px 20px; max-width:640px; margin:0 auto; width:100%}
+  .day-block{display:flex; gap:14px; padding:16px 0; border-bottom:1px solid var(--hairline)}
+  .day-block:last-child{border-bottom:0}
+  .day-block .time{flex:none; width:82px; font-size:12.5px; font-weight:700; color:var(--sub); padding-top:2px}
+  .day-block .content{flex:1; min-width:0}
+  .day-block .content .title{font-weight:700; font-size:15px; letter-spacing:-.01em}
+  .day-block .content .desc{font-size:13.5px; color:var(--sub); margin-top:4px}
+  .day-nav{
+    display:flex; gap:10px; flex:none;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--hairline); background:var(--bg);
+    max-width:640px; margin:0 auto; width:100%;
+  }
+  .day-nav button{
+    flex:1; padding:12px; border-radius:12px; border:1px solid var(--hairline);
+    background:var(--card); font:inherit; font-size:13.5px; font-weight:700; color:var(--ink);
+    cursor:pointer;
+  }
+  .day-nav button:disabled{opacity:.35; cursor:default}
+
   @media (prefers-reduced-motion:reduce){
     *{animation:none!important; transition:none!important}
     .hero .kicker,.hero h1,.hero .sub,.hero .stats{opacity:1}
@@ -306,7 +351,7 @@
 
   <!-- ============ ITINÉRAIRE ============ -->
   <section class="view active" id="view-itineraire">
-    <h2 class="section">Jour par jour <small>Touchez une étape pour le détail</small></h2>
+    <h2 class="section">Jour par jour <small>Touchez une étape, puis un jour pour le détail heure par heure</small></h2>
     <div class="timeline" id="timeline"></div>
   </section>
 
@@ -337,106 +382,248 @@
 
 <footer>
   <span class="torii">⛩️</span>
-  Itinéraire du groupe · v2 · mis à jour juillet 2026
+  Itinéraire du groupe · v3 · mis à jour juillet 2026
 </footer>
+
+<!-- ============ FICHE JOUR (plein écran) ============ -->
+<div class="day-sheet" id="daySheet" aria-hidden="true">
+  <div class="day-sheet-head">
+    <button class="day-back" id="dayBack" aria-label="Retour">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="day-sheet-title">
+      <div class="stage-tag" id="dayStage"></div>
+      <div class="day-date" id="dayDate"></div>
+    </div>
+  </div>
+  <div class="day-sheet-body" id="dayBody"></div>
+  <div class="day-nav">
+    <button id="dayPrev">← Veille</button>
+    <button id="dayNext">Lendemain →</button>
+  </div>
+</div>
 
 <script>
 /* =================== DONNÉES =================== */
 const STAGES = [
   {
-    id:"tokyo1", name:"Tokyo — arrivée", emoji:"🗼", color:"var(--momiji)", cssColor:"#C2402A",
+    id:"tokyo1", name:"Tokyo, arrivée", emoji:"🗼", color:"var(--momiji)", cssColor:"#C2402A",
     dates:"ven 13 → mar 17 nov", nights:"4 nuits", start:"2026-11-13", end:"2026-11-17",
-    lodging:"Mi-Kan design",
+    lodging:"Mi-Kan design", mapQuery:"Mi-Kan design, Tokyo",
     days:[
-      ["Ven 13","Atterrissage Haneda 14h25 · installation, dîner tranquille (jetlag)."],
-      ["Sam 14","Tokyo libre — quartiers pas encore vus au 1ᵉʳ voyage."],
-      ["Dim 15","Kamakura : Grand Bouddha, Hasedera, illuminations possibles."],
-      ["Lun 16","PokéPark KANTO (Yomiuriland) — en semaine = plus calme. Keio depuis Shinjuku ~30 min. <span class='tag warn'>billets loterie</span>"]
+      {d:"Ven 13", date:"2026-11-13",
+        summary:"Atterrissage à Haneda 14h25, installation, dîner tranquille (jetlag).",
+        blocks:[
+          {time:"14h25", icon:"✈️", title:"Atterrissage à Haneda"},
+          {time:"Soir", icon:"🏠", title:"Installation, dîner tranquille", desc:"Jetlag oblige, rien de prévu ce soir."}
+        ]},
+      {d:"Sam 14", date:"2026-11-14",
+        summary:"Matin : Musée Ghibli (Mitaka), réservation en cours. Après-midi : Tokyo libre, quartiers pas encore vus au 1ᵉʳ voyage. <span class='tag warn'>réservation en cours</span>",
+        blocks:[
+          {time:"Matin", icon:"🎬", title:"Musée Ghibli (Mitaka)", desc:"Un des potes de voyage s'occupe de la réservation.", tag:"réservation en cours", tagClass:"warn"},
+          {time:"Après-midi", icon:"🚶", title:"Tokyo libre", desc:"Quartiers pas encore vus au 1ᵉʳ voyage."}
+        ]},
+      {d:"Dim 15", date:"2026-11-15",
+        summary:"Kamakura : Grand Bouddha, Hasedera, illuminations possibles.",
+        blocks:[
+          {time:"Journée", icon:"⛩️", title:"Kamakura", desc:"Grand Bouddha, Hasedera, illuminations possibles en soirée."}
+        ]},
+      {d:"Lun 16", date:"2026-11-16",
+        summary:"PokéPark Kanto (Yomiuriland), en semaine = plus calme. Keio depuis Shinjuku ~30 min. <span class='tag warn'>billets loterie</span>",
+        blocks:[
+          {time:"Journée", icon:"🎡", title:"PokéPark Kanto (Yomiuriland)", desc:"En semaine, donc plus calme. Keio depuis Shinjuku ~30 min.", tag:"billets loterie", tagClass:"warn"}
+        ]}
     ],
     next:{icon:"✈️",text:"Vol Tokyo → Fukuoka ~1h45, puis minivan → Yufuin ~2h",cls:""}
   },
   {
     id:"yufuin", name:"Yufuin (Kyushu)", emoji:"♨️", color:"var(--kaki)", cssColor:"#DE8A3B",
     dates:"mar 17 → jeu 19 nov", nights:"2 nuits", start:"2026-11-17", end:"2026-11-19",
-    lodging:"662 Kawakita, Yufuin-chō, Yufu (Ōita)",
+    lodging:"662 Kawakita, Yufuin-chō, Yufu (Ōita)", mapQuery:"662 Kawakita, Yufuin-chō, Yufu, Ōita, Japan",
     days:[
-      ["Mar 17","Arrivée après-midi · lac Kinrin, rue Yunotsubo (boutiques ferment tôt), vue mont Yufu · soir onsen. <span class='tag top'>onsen</span>"],
-      ["Mer 18","Rando du Kujū depuis Makinoto-tōge (~40 min de route, Yamanami Hwy) · 4-5h, froid possible. Option après-rando : Kurokawa Onsen (+25 min) & rotenburo-hopping (tegata ~1 500 ¥). <span class='tag top'>rando</span>"],
-      ["Jeu 19","Retour Fukuoka. Plan A direct ~2h · Plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé). Restitution du minivan."]
+      {d:"Mar 17", date:"2026-11-17",
+        summary:"Arrivée après-midi : lac Kinrin, rue Yunotsubo (boutiques ferment tôt), vue mont Yufu. Soir onsen. <span class='tag top'>onsen</span>",
+        blocks:[
+          {time:"Après-midi", icon:"🚗", title:"Arrivée à Yufuin", desc:"Lac Kinrin, rue Yunotsubo (les boutiques ferment tôt), vue sur le mont Yufu."},
+          {time:"Soir", icon:"♨️", title:"Onsen", tag:"onsen", tagClass:"top"}
+        ]},
+      {d:"Mer 18", date:"2026-11-18",
+        summary:"Rando du Kujū depuis Makinoto-tōge (~40 min de route, Yamanami Hwy), 4-5h, froid possible. Kurokawa Onsen ensuite (+25 min) et rotenburo-hopping (tegata ~1 500 ¥). <span class='tag top'>rando</span>",
+        blocks:[
+          {time:"Matin", icon:"🥾", title:"Randonnée du Kujū", desc:"Départ Makinoto-tōge (~40 min de route, Yamanami Hwy), 4-5h, froid possible.", tag:"rando", tagClass:"top"},
+          {time:"Fin d'après-midi", icon:"♨️", title:"Kurokawa Onsen", desc:"+25 min de route. Rotenburo-hopping avec le tegata (~1 500 ¥).", tag:"onsen", tagClass:"top"}
+        ]},
+      {d:"Jeu 19", date:"2026-11-19",
+        summary:"Retour Fukuoka. Plan A direct ~2h, plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé). Restitution du minivan.",
+        blocks:[
+          {time:"Matin", icon:"🚗", title:"Retour vers Fukuoka", desc:"Plan A direct ~2h. Plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé)."},
+          {time:"Après-midi", icon:"🔑", title:"Restitution du minivan"}
+        ]}
     ],
     next:{icon:"🚗",text:"Boucle minivan retour → Fukuoka",cls:""}
   },
   {
     id:"fukuoka", name:"Fukuoka", emoji:"🍜", color:"var(--icho)", cssColor:"#D3A63C",
     dates:"jeu 19 → sam 21 nov", nights:"2 nuits", start:"2026-11-19", end:"2026-11-21",
-    lodging:"Nishinakasu 1, Chūō-ku — au cœur des yatai !",
+    lodging:"Nishinakasu 1, Chūō-ku, à deux pas des yatai", mapQuery:"Nishinakasu 1, Chūō-ku, Fukuoka",
     days:[
-      ["Jeu 19","Après-midi Tenjin / parc Ōhori · soir yatai de Nakasu (à pied du logement). <span class='tag top'>food</span>"],
-      ["Ven 20","Dazaifu Tenmangū (~35 min, beau en automne) · ramen de Hakata, motsunabe, mentaiko."],
-      ["Sam 21","Matin libre · ferry pour Busan en début d'après-midi (terminal à ~10 min)."]
+      {d:"Jeu 19", date:"2026-11-19",
+        summary:"Après-midi Tenjin / parc Ōhori, soir yatai de Nakasu (à pied du logement). <span class='tag top'>food</span>",
+        blocks:[
+          {time:"Après-midi", icon:"🌳", title:"Tenjin, parc Ōhori"},
+          {time:"Soir", icon:"🏮", title:"Yatai de Nakasu", desc:"À pied du logement.", tag:"food", tagClass:"top"}
+        ]},
+      {d:"Ven 20", date:"2026-11-20",
+        summary:"Dazaifu Tenmangū (~35 min, beau en automne), ramen de Hakata, motsunabe, mentaiko.",
+        blocks:[
+          {time:"Matin", icon:"⛩️", title:"Dazaifu Tenmangū", desc:"~35 min, beau en automne."},
+          {time:"Soir", icon:"🍜", title:"Ramen de Hakata, motsunabe, mentaiko"}
+        ]},
+      {d:"Sam 21", date:"2026-11-21",
+        summary:"Matin libre, ferry pour Busan en début d'après-midi (terminal à ~10 min).",
+        blocks:[
+          {time:"Matin", icon:"🛍️", title:"Matin libre"},
+          {time:"12h30", icon:"⛴️", title:"Ferry pour Busan", desc:"Terminal à ~10 min du logement."}
+        ]}
     ],
     next:{icon:"⛴️",text:"Ferry Hakata → Busan · départ ~12h30, arrivée ~18h30",cls:"ferry"}
   },
   {
     id:"busan", name:"Busan, Corée", emoji:"🇰🇷", color:"var(--umi)", cssColor:"#3F7286",
     dates:"sam 21 → lun 23 nov", nights:"2 nuits", start:"2026-11-21", end:"2026-11-24",
-    lodging:"82 Bongnaenaru-ro, Yeongdo-gu",
+    lodging:"82 Bongnaenaru-ro, Yeongdo-gu", mapQuery:"82 Bongnaenaru-ro, Yeongdo-gu, Busan",
     days:[
-      ["Sam 21","Arrivée 18h30 · soirée Nampo / marché de Jagalchi (juste en face du pont)."],
-      ["Dim 22","Gamcheon Culture Village · Haedong Yonggungsa (temple en bord de mer) · falaises de Taejongdae ou sentier d'Igidae."],
-      ["Lun 23","Journée Busan (férié japonais passé hors Japon 😎) · ferry de nuit ~22h30 → Hakata. <span class='tag warn'>nuit à bord</span>"]
+      {d:"Sam 21", date:"2026-11-21",
+        summary:"Arrivée 18h30, soirée Nampo / marché de Jagalchi (juste en face du pont).",
+        blocks:[
+          {time:"18h30", icon:"⛴️", title:"Arrivée à Busan"},
+          {time:"Soir", icon:"🌃", title:"Nampo, marché de Jagalchi", desc:"Juste en face du pont."}
+        ]},
+      {d:"Dim 22", date:"2026-11-22",
+        summary:"Gamcheon Culture Village, Haedong Yonggungsa (temple en bord de mer), falaises de Taejongdae ou sentier d'Igidae.",
+        blocks:[
+          {time:"Matin", icon:"🎨", title:"Gamcheon Culture Village"},
+          {time:"Après-midi", icon:"⛩️", title:"Haedong Yonggungsa", desc:"Temple en bord de mer."},
+          {time:"Fin d'après-midi", icon:"🥾", title:"Taejongdae ou sentier d'Igidae"}
+        ]},
+      {d:"Lun 23", date:"2026-11-23",
+        summary:"Journée à Busan, le férié japonais se passe sans nous. Ferry de nuit ~22h30 → Hakata. <span class='tag warn'>nuit à bord</span>",
+        blocks:[
+          {time:"Journée", icon:"🇰🇷", title:"Journée à Busan", desc:"Le férié japonais se passe sans nous."},
+          {time:"22h30", icon:"🌙", title:"Ferry de nuit vers Hakata", tag:"nuit à bord", tagClass:"warn"}
+        ]}
     ],
     next:{icon:"🌙",text:"Ferry de nuit Busan → Hakata · arrivée mar 24 ~7h30, puis shinkansen ~1h30",cls:"ferry"}
   },
   {
     id:"hiroshima", name:"Hiroshima + Miyajima", emoji:"⛩️", color:"var(--momiji)", cssColor:"#C2402A",
     dates:"mar 24 → jeu 26 nov", nights:"2 nuits", start:"2026-11-24", end:"2026-11-26",
-    lodging:"Tanakamachi 2-28, Naka-ku — plein centre",
+    lodging:"Tanakamachi 2-28, Naka-ku, en plein centre", mapQuery:"Tanakamachi 2-28, Naka-ku, Hiroshima",
     days:[
-      ["Mar 24","Parc & Musée du Mémorial de la Paix, Dôme de Genbaku · soir okonomiyaki (Okonomimura à deux pas), izakaya."],
-      ["Mer 25","Miyajima : Itsukushima & torii flottant (marées !), Momijidani au pic, Daishō-in · mont Misen à pied (~2h) ou téléphérique · huîtres grillées, anago-meshi. <span class='tag top'>momiji</span>"]
+      {d:"Mar 24", date:"2026-11-24",
+        summary:"Parc & Musée du Mémorial de la Paix, Dôme de Genbaku. Soir okonomiyaki (Okonomimura à deux pas), izakaya.",
+        blocks:[
+          {time:"Journée", icon:"🕊️", title:"Parc et Musée du Mémorial de la Paix", desc:"Dôme de Genbaku."},
+          {time:"Soir", icon:"🥞", title:"Okonomiyaki, izakaya", desc:"Okonomimura à deux pas."}
+        ]},
+      {d:"Mer 25", date:"2026-11-25",
+        summary:"Miyajima : Itsukushima & torii flottant (marées !), Momijidani au pic, Daishō-in. Mont Misen à pied (~2h) ou téléphérique. Huîtres grillées, anago-meshi. <span class='tag top'>momiji</span>",
+        blocks:[
+          {time:"Journée", icon:"⛩️", title:"Miyajima", desc:"Itsukushima et torii flottant (attention aux marées), Momijidani au pic, Daishō-in.", tag:"momiji", tagClass:"top"},
+          {time:"Après-midi", icon:"🥾", title:"Mont Misen", desc:"À pied (~2h) ou téléphérique."},
+          {time:"Soir", icon:"🦪", title:"Huîtres grillées, anago-meshi"}
+        ]}
     ],
     next:{icon:"🚄",text:"Shinkansen Hiroshima → Okayama ~40 min",cls:""}
   },
   {
     id:"okayama", name:"Okayama + Kurashiki", emoji:"🏮", color:"var(--kaki)", cssColor:"#DE8A3B",
     dates:"jeu 26 → ven 27 nov", nights:"1 nuit", start:"2026-11-26", end:"2026-11-27",
-    lodging:"Kuwadachō 17-10, Kita-ku, Okayama",
+    lodging:"Kuwadachō 17-10, Kita-ku, Okayama", mapQuery:"Kuwadachō 17-10, Kita-ku, Okayama, Japan",
     days:[
-      ["Jeu 26","Bagages déposés → train local 15 min → Kurashiki : quartier Bikan (canal, entrepôts Edo), musée Ōhara, barque · soir : Kōraku-en (~15 min à pied), illuminations d'automne à vérifier. <span class='tag top'>canal</span>"]
+      {d:"Jeu 26", date:"2026-11-26",
+        summary:"Bagages déposés, train local 15 min → Kurashiki : quartier Bikan (canal, entrepôts Edo), musée Ōhara, barque. Soir Kōraku-en (~15 min à pied), illuminations d'automne à vérifier. <span class='tag top'>canal</span>",
+        blocks:[
+          {time:"Matin", icon:"🧳", title:"Bagages déposés", desc:"Train local 15 min vers Kurashiki."},
+          {time:"Journée", icon:"🛶", title:"Kurashiki", desc:"Quartier Bikan (canal, entrepôts Edo), musée Ōhara, balade en barque.", tag:"canal", tagClass:"top"},
+          {time:"Soir", icon:"🏯", title:"Kōraku-en", desc:"~15 min à pied. Illuminations d'automne à vérifier."}
+        ]}
     ],
     next:{icon:"🚄",text:"Okayama → Himeji ~20 min · château + Kōko-en (consigne) → Osaka ~40 min",cls:""}
   },
   {
-    id:"osaka", name:"Kansai — base Osaka", emoji:"🐙", color:"var(--icho)", cssColor:"#D3A63C",
+    id:"osaka", name:"Kansai, base Osaka", emoji:"🐙", color:"var(--icho)", cssColor:"#D3A63C",
     dates:"ven 27 nov → mer 2 déc", nights:"5 nuits", start:"2026-11-27", end:"2026-12-02",
-    lodging:"Ebisuhigashi 1-14-11, Naniwa-ku — pied de la Tsūtenkaku (Shinsekai)",
+    lodging:"Ebisuhigashi 1-14-11, Naniwa-ku, au pied de la Tsūtenkaku (Shinsekai)", mapQuery:"Ebisuhigashi 1-14-11, Naniwa-ku, Osaka",
     days:[
-      ["Ven 27","Arrêt Himeji le matin (château) · arrivée fin d'après-midi · dîner Shinsekai (kushikatsu) ou Dōtonbori."],
-      ["Sam 28","Nara en Kintetsu direct ~40 min (Tōdai-ji, daims, ½ journée) · retour Osaka food."],
-      ["Dim 29","Osaka : Dōtonbori, château, Kuromon · 1ʳᵉ approche Kyoto possible."],
-      ["Lun 30","USJ (jour de semaine) — Express Pass conseillé. <span class='tag warn'>réserver</span>"],
-      ["Mar 1ᵉʳ","Kyoto au pic du momiji : Tōfuku-ji (Keihan direct), Arashiyama, Higashiyama — départ matinal ! <span class='tag top'>momiji</span>"],
-      ["Repos","1 jour tranquille intégré, interchangeable selon la météo."]
+      {d:"Ven 27", date:"2026-11-27",
+        summary:"Arrêt Himeji le matin (château), arrivée fin d'après-midi, dîner Shinsekai (kushikatsu) ou Dōtonbori.",
+        blocks:[
+          {time:"Matin", icon:"🏯", title:"Himeji", desc:"Arrêt château en route."},
+          {time:"Soir", icon:"🍢", title:"Shinsekai ou Dōtonbori", desc:"Kushikatsu."}
+        ]},
+      {d:"Sam 28", date:"2026-11-28",
+        summary:"Nara en Kintetsu direct ~40 min (Tōdai-ji, daims, ½ journée), retour Osaka food.",
+        blocks:[
+          {time:"Journée", icon:"🦌", title:"Nara", desc:"Kintetsu direct ~40 min. Tōdai-ji, les daims, une demi-journée."},
+          {time:"Soir", icon:"🍽️", title:"Retour à Osaka pour manger"}
+        ]},
+      {d:"Dim 29", date:"2026-11-29",
+        summary:"Osaka : Dōtonbori, château, Kuromon. 1ʳᵉ approche de Kyoto possible.",
+        blocks:[
+          {time:"Journée", icon:"🐙", title:"Osaka", desc:"Dōtonbori, château, Kuromon."},
+          {time:"Après-midi", icon:"👀", title:"1ʳᵉ approche de Kyoto possible"}
+        ]},
+      {d:"Lun 30", date:"2026-11-30",
+        summary:"USJ (jour de semaine), Express Pass conseillé. <span class='tag warn'>réserver</span>",
+        blocks:[
+          {time:"Journée", icon:"🎢", title:"USJ", desc:"Jour de semaine, Express Pass conseillé.", tag:"réserver", tagClass:"warn"}
+        ]},
+      {d:"Mar 1ᵉʳ", date:"2026-12-01",
+        summary:"Kyoto au pic du momiji : Tōfuku-ji (Keihan direct), Arashiyama, Higashiyama. Départ matinal. <span class='tag top'>momiji</span>",
+        blocks:[
+          {time:"Tôt le matin", icon:"🍁", title:"Kyoto au pic du momiji", desc:"Tōfuku-ji (Keihan direct), Arashiyama, Higashiyama. Départ matinal.", tag:"momiji", tagClass:"top"}
+        ]},
+      {d:"Repos", date:null,
+        summary:"1 jour tranquille intégré, interchangeable selon la météo.",
+        blocks:[
+          {time:"Journée", icon:"🌤️", title:"Jour tranquille", desc:"Interchangeable selon la météo."}
+        ]}
     ],
     next:{icon:"🚄",text:"Shinkansen Osaka → Tokyo ~2h15 (ou vol ~1h30)",cls:""}
   },
   {
-    id:"tokyo2", name:"Tokyo — fin & départ", emoji:"🛫", color:"var(--pin)", cssColor:"#6E7F50",
+    id:"tokyo2", name:"Tokyo, fin & départ", emoji:"🛫", color:"var(--pin)", cssColor:"#6E7F50",
     dates:"mer 2 → ven 4 déc", nights:"2 nuits", start:"2026-12-02", end:"2026-12-04",
-    lodging:"Asahi-chō 4-16, Haneda (Ōta-ku) — à 2 stations Keikyū de l'aéroport",
+    lodging:"Asahi-chō 4-16, Haneda (Ōta-ku), à 2 stations Keikyū de l'aéroport", mapQuery:"Asahi-chō 4-16, Ōta-ku, Tokyo",
     days:[
-      ["Mer 2","Trajet le matin · après-midi/soir shopping & chill (Keikyū → Shinagawa ~25 min)."],
-      ["Jeu 3","Derniers quartiers, souvenirs, repos · valises bouclées."],
-      ["Ven 4","Vol Haneda 8h25 → à l'aéroport vers 6h15 (Keikyū ou taxi ~10-15 min). 🇫🇷"]
+      {d:"Mer 2", date:"2026-12-02",
+        summary:"Trajet le matin, après-midi/soir shopping & chill (Keikyū → Shinagawa ~25 min).",
+        blocks:[
+          {time:"Matin", icon:"🚄", title:"Trajet vers Tokyo"},
+          {time:"Après-midi", icon:"🛍️", title:"Shopping, on souffle un peu", desc:"Keikyū → Shinagawa ~25 min."}
+        ]},
+      {d:"Jeu 3", date:"2026-12-03",
+        summary:"Derniers quartiers, souvenirs, repos, valises bouclées.",
+        blocks:[
+          {time:"Journée", icon:"🎁", title:"Derniers quartiers, souvenirs"},
+          {time:"Soir", icon:"🧳", title:"Valises bouclées"}
+        ]},
+      {d:"Ven 4", date:"2026-12-04",
+        summary:"Vol Haneda 8h25, départ vers l'aéroport ~6h15 (Keikyū ou taxi ~10-15 min). 🇫🇷",
+        blocks:[
+          {time:"6h15", icon:"🚕", title:"Départ vers l'aéroport", desc:"Keikyū ou taxi ~10-15 min."},
+          {time:"8h25", icon:"✈️", title:"Vol Haneda → Paris"}
+        ]}
     ],
     next:null
   }
 ];
 
 const TODOS = [
-  {t:"PokéPark KANTO — 5 billets, même créneau (lun 16/11)", d:"Loterie ~3 mois avant sur ticket-en.pokepark-kanto.co.jp, remise en vente ~2 mois avant. Ça part très vite.", dl:"⏰ loterie ≈ mi-août 2026", hot:true},
-  {t:"Ferry Hakata ⇄ Busan (Camellia Line)", d:"Aller sam 21/11 (jour), retour lun 23/11 (nuit). Economy Bargain = moins cher mais non remboursable — vérifier les conditions.", dl:"Dès l'ouverture des ventes", hot:true},
+  {t:"PokéPark Kanto, 5 billets, même créneau (lun 16/11)", d:"Loterie ~3 mois avant sur ticket-en.pokepark-kanto.co.jp, remise en vente ~2 mois avant. Ça part très vite.", dl:"⏰ loterie ≈ mi-août 2026", hot:true},
+  {t:"Musée Ghibli, billets pour 5 (sam 14/11 matin)", d:"Un des potes de voyage s'en occupe. Vente le 10 du mois précédent à 10h JST (~3h du matin en France), sur le site officiel.", dl:"⏰ vente le 10 octobre 2026, 10h JST", hot:true},
+  {t:"Ferry Hakata ⇄ Busan (Camellia Line)", d:"Aller sam 21/11 (jour), retour lun 23/11 (nuit). Economy Bargain, moins cher mais non remboursable : à vérifier avant de payer.", dl:"Dès l'ouverture des ventes", hot:true},
   {t:"Minivan 7-8 places à Fukuoka (17–19/11)", d:"Toyota Noah/Voxy ou Nissan Serena, boucle A/R Fukuoka. Demander la carte ETC pour les péages.", dl:null, hot:false},
   {t:"Traductions JAF des permis français", d:"Obligatoire pour conduire au Japon (l'IDP ne suffit pas pour la France). Un par conducteur.", dl:"Avant le départ", hot:false},
   {t:"Universal Studios Japan (lun 30/11)", d:"Billets datés + Express Pass conseillé en haute saison.", dl:null, hot:false},
@@ -445,7 +632,7 @@ const TODOS = [
 ];
 
 const INFOS = [
-  {icon:"🍁", title:"Momiji — on est pile dessus", items:[
+  {icon:"🍁", title:"Momiji, on est pile dessus", items:[
     "Kyushu (Yufuin, vallées) : pic fin novembre.",
     "Miyajima / Momijidani : mi-fin novembre → parfait le 25/11.",
     "Kyoto & Kansai : pic fin nov – début déc → parfait en fin de séjour.",
@@ -454,10 +641,10 @@ const INFOS = [
   {icon:"🧣", title:"Météo & équipement", items:[
     "Froid en altitude et le soir (Kujū, mont Misen) : couches + coupe-vent.",
     "Neige précoce possible au sommet du Kujū → traction légère utile.",
-    "Cratère de l'Aso (Nakadake) fermé en 2026 — points de vue & prairies ouverts."
+    "Cratère de l'Aso (Nakadake) fermé en 2026, mais points de vue et prairies restent ouverts."
   ]},
   {icon:"🎌", title:"Le coup du férié", items:[
-    "Sam 21 – lun 23 nov = Kinrō Kansha no Hi, LE pic de foule de l'année.",
+    "Sam 21 – lun 23 nov : Kinrō Kansha no Hi, un des plus gros pics de fréquentation de l'année.",
     "On le passe entièrement à Busan → zéro impact.",
     "Résultat : Miyajima, Hiroshima et Kyoto en semaine post-férié, bien plus calmes."
   ]},
@@ -478,6 +665,71 @@ const INFOS = [
 /* =================== RENDER =================== */
 const mapsUrl = a => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(a);
 
+/* liste à plat de tous les jours, dans l'ordre du voyage (pour "veille"/"lendemain") */
+const FLAT_DAYS = STAGES.flatMap((s,si)=>s.days.map((d,di)=>({si,di})));
+
+/* Fiche jour plein écran */
+const daySheet = document.getElementById("daySheet");
+const dayStageEl = document.getElementById("dayStage");
+const dayDateEl = document.getElementById("dayDate");
+const dayBodyEl = document.getElementById("dayBody");
+const dayPrevBtn = document.getElementById("dayPrev");
+const dayNextBtn = document.getElementById("dayNext");
+
+function showDay(si, di, fromHash){
+  const stage = STAGES[si];
+  const day = stage.days[di];
+
+  dayStageEl.textContent = `${stage.emoji} ${stage.name}`;
+  if(day.date){
+    let label = new Date(day.date+"T00:00:00+09:00").toLocaleDateString("fr-FR",{weekday:"long", day:"numeric", month:"long", timeZone:"Asia/Tokyo"});
+    dayDateEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+  } else {
+    dayDateEl.textContent = day.d;
+  }
+
+  dayBodyEl.innerHTML = (day.blocks && day.blocks.length)
+    ? day.blocks.map(b=>`
+        <div class="day-block">
+          <div class="time">${b.time}</div>
+          <div class="content">
+            <div class="title">${b.icon?b.icon+" ":""}${b.title}${b.tag?` <span class="tag ${b.tagClass||'top'}">${b.tag}</span>`:""}</div>
+            ${b.desc?`<div class="desc">${b.desc}</div>`:""}
+          </div>
+        </div>`).join("")
+    : `<div class="day-block"><div class="content"><div class="desc">${day.summary}</div></div></div>`;
+
+  const pos = FLAT_DAYS.findIndex(x=>x.si===si && x.di===di);
+  dayPrevBtn.disabled = pos <= 0;
+  dayNextBtn.disabled = pos >= FLAT_DAYS.length - 1;
+  dayPrevBtn.onclick = ()=>{ if(pos>0) showDay(FLAT_DAYS[pos-1].si, FLAT_DAYS[pos-1].di); };
+  dayNextBtn.onclick = ()=>{ if(pos<FLAT_DAYS.length-1) showDay(FLAT_DAYS[pos+1].si, FLAT_DAYS[pos+1].di); };
+
+  daySheet.classList.add("open");
+  daySheet.setAttribute("aria-hidden","false");
+  document.body.style.overflow = "hidden";
+  dayBodyEl.scrollTop = 0;
+  if(!fromHash) history.pushState(null, "", `#j-${si}-${di}`);
+}
+
+function closeDaySheet(){
+  daySheet.classList.remove("open");
+  daySheet.setAttribute("aria-hidden","true");
+  document.body.style.overflow = "";
+}
+
+function syncSheetFromHash(){
+  const m = location.hash.match(/^#j-(\d+)-(\d+)$/);
+  if(m && STAGES[+m[1]] && STAGES[+m[1]].days[+m[2]]){
+    showDay(+m[1], +m[2], true);
+  } else {
+    closeDaySheet();
+  }
+}
+document.getElementById("dayBack").addEventListener("click", ()=> history.back());
+window.addEventListener("popstate", syncSheetFromHash);
+
+/* Itinéraire */
 const timeline = document.getElementById("timeline");
 STAGES.forEach((s,i)=>{
   const wrap = document.createElement("div");
@@ -496,7 +748,12 @@ STAGES.forEach((s,i)=>{
       </button>
       <div class="stage-body">
         <div class="stage-body-inner">
-          ${s.days.map(d=>`<div class="day"><b class="d">${d[0]}</b><p>${d[1]}</p></div>`).join("")}
+          ${s.days.map((d,di)=>`
+            <div class="day${d.blocks&&d.blocks.length?' clickable':''}" data-day="${di}">
+              <b class="d">${d.d}</b>
+              <p>${d.summary}</p>
+              ${d.blocks&&d.blocks.length?'<svg class="day-chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+            </div>`).join("")}
         </div>
       </div>
     </div>
@@ -511,12 +768,18 @@ STAGES.forEach((s,i)=>{
     head.setAttribute("aria-expanded", open);
     body.style.maxHeight = open ? body.scrollHeight + "px" : "0px";
   });
+
+  wrap.querySelectorAll(".day.clickable").forEach(dayEl=>{
+    dayEl.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      showDay(i, +dayEl.dataset.day);
+    });
+  });
 });
 
 /* Logements */
 const stays = document.getElementById("stays");
 STAGES.forEach(s=>{
-  if(s.id==="busan"){/* inclut ferry après */}
   const el = document.createElement("div");
   el.className = "card stay";
   el.style.setProperty("--stage-color", s.cssColor);
@@ -526,7 +789,7 @@ STAGES.forEach(s=>{
       <div class="name">${s.name}</div>
       <div class="dates">${s.dates} · ${s.nights}</div>
       <div class="addr">${s.lodging}</div>
-      <a class="map" href="${mapsUrl(s.lodging.replace(/—.*/,'') + (s.id==='busan'?' Busan':' Japan'))}" target="_blank" rel="noopener">📍 Ouvrir dans Plans</a>
+      <a class="map" href="${mapsUrl(s.mapQuery)}" target="_blank" rel="noopener">📍 Ouvrir dans Plans</a>
     </div>`;
   stays.appendChild(el);
   if(s.id==="busan"){
@@ -636,7 +899,7 @@ document.querySelectorAll(".card").forEach(c=>io.observe(c));
       }
     });
   } else {
-    cd.textContent = "Voyage terminé 🥲 Otsukaresama !";
+    cd.textContent = "Voyage terminé, otsukaresama.";
   }
 })();
 
@@ -661,6 +924,9 @@ document.querySelectorAll(".card").forEach(c=>io.observe(c));
     holder.appendChild(l);
   }
 })();
+
+/* Ouvrir directement sur un jour si l'URL le pointe (#j-<etape>-<jour>) */
+syncSheetFromHash();
 </script>
 </body>
 </html>
