@@ -705,11 +705,18 @@ function showDay(si, di, fromHash){
   dayPrevBtn.onclick = ()=>{ if(pos>0) showDay(FLAT_DAYS[pos-1].si, FLAT_DAYS[pos-1].di); };
   dayNextBtn.onclick = ()=>{ if(pos<FLAT_DAYS.length-1) showDay(FLAT_DAYS[pos+1].si, FLAT_DAYS[pos+1].di); };
 
+  const alreadyOpen = daySheet.classList.contains("open");
   daySheet.classList.add("open");
   daySheet.setAttribute("aria-hidden","false");
   document.body.style.overflow = "hidden";
   dayBodyEl.scrollTop = 0;
-  if(!fromHash) history.pushState(null, "", `#j-${si}-${di}`);
+  if(!fromHash){
+    const url = `#j-${si}-${di}`;
+    /* Veille/Lendemain ne doivent pas empiler l'historique : un seul retour arrière
+       doit toujours refermer la fiche, quel que soit le nombre de jours parcourus. */
+    if(alreadyOpen) history.replaceState(null, "", url);
+    else history.pushState(null, "", url);
+  }
 }
 
 function closeDaySheet(){
