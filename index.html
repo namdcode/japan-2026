@@ -310,6 +310,27 @@
   }
   .day-nav button:disabled{opacity:.35; cursor:default}
 
+  /* ---------- Bascule Liste / Carte + carte schématique ---------- */
+  .view-toggle{
+    display:inline-flex; gap:4px; background:rgba(120,90,60,.10);
+    border-radius:11px; padding:3px; margin:0 4px 14px;
+  }
+  .view-toggle button{
+    appearance:none; border:0; background:none; font:inherit;
+    font-size:12.5px; font-weight:700; color:var(--sub);
+    padding:7px 16px; border-radius:8px; cursor:pointer; transition:color .25s;
+  }
+  .view-toggle button.active{background:var(--card); color:var(--ink); box-shadow:0 1px 4px rgba(60,35,15,.14)}
+  .map-card{padding:16px 14px 6px}
+  .map-svg{display:block; width:100%; height:auto}
+  .map-land{stroke-width:2}
+  .map-pin{cursor:pointer}
+  .map-pin .pin-dot{stroke:#fff; stroke-width:2}
+  .map-pin text{font-size:11px; font-weight:700; fill:var(--ink)}
+  .map-route{fill:none; stroke-width:2; stroke-dasharray:4 4}
+  .map-sea{font-size:9.5px; font-style:italic; fill:var(--sub); opacity:.65}
+  .map-caption{font-size:12px; color:var(--sub); text-align:center; padding:10px 6px 14px; font-style:italic}
+
   @media (prefers-reduced-motion:reduce){
     *{animation:none!important; transition:none!important}
     .hero .kicker,.hero h1,.hero .sub,.hero .stats{opacity:1}
@@ -351,8 +372,38 @@
 
   <!-- ============ ITINÉRAIRE ============ -->
   <section class="view active" id="view-itineraire">
-    <h2 class="section">Jour par jour <small>Touchez une étape, puis un jour pour le détail heure par heure</small></h2>
+    <h2 class="section">Jour par jour <small id="itinHint">Touchez une étape, puis un jour pour le détail heure par heure</small></h2>
+    <div class="view-toggle" id="itinToggle">
+      <button class="active" data-mode="liste">Liste</button>
+      <button data-mode="carte">Carte</button>
+    </div>
     <div class="timeline" id="timeline"></div>
+    <div class="card map-card revealed" id="mapCard" hidden>
+      <svg class="map-svg" viewBox="0 0 300 440" xmlns="http://www.w3.org/2000/svg" aria-label="Carte schématique du parcours">
+        <path class="map-land" style="fill:color-mix(in srgb, var(--umi) 14%, white); stroke:var(--umi); stroke-opacity:.35"
+          d="M20,300 C10,280 15,260 35,250 C55,242 70,255 68,275 C66,295 75,310 65,330 C55,350 40,355 30,340 C22,328 26,312 20,300 Z"/>
+        <path class="map-land" style="fill:color-mix(in srgb, var(--kaki) 14%, white); stroke:var(--hairline)"
+          d="M95,345 C80,335 75,315 85,300 C95,285 115,282 130,290 C145,298 148,315 140,330 C132,345 115,360 100,358 C97,357 96,352 95,345 Z"/>
+        <path class="map-land" style="fill:color-mix(in srgb, var(--kaki) 14%, white); stroke:var(--hairline)"
+          d="M132,292 C150,270 170,260 185,255 C205,248 220,240 235,222 C250,205 255,185 250,165 C265,150 275,130 270,105 C267,90 255,85 248,98 C245,115 230,135 210,148 C195,158 185,175 190,195 C170,205 155,215 148,235 C142,250 145,265 135,278 C130,285 128,290 132,292 Z"/>
+
+        <text class="map-sea" x="6" y="205" transform="rotate(-70 6 205)">Mer du Japon</text>
+        <text class="map-sea" x="222" y="332">Océan Pacifique</text>
+
+        <path class="map-route" style="stroke:var(--sub)" d="M250,150 L195,235 L165,260 L125,320"/>
+        <path class="map-route" style="stroke:var(--umi)" d="M125,320 L100,300 L55,320 L165,260"/>
+        <path class="map-route" style="stroke:var(--sub)" d="M195,235 L222,205 L250,150"/>
+
+        <g class="map-pin" data-stage="tokyo1"><circle cx="250" cy="150" r="16" fill="none" style="pointer-events:all"/><circle cx="250" cy="150" r="7" class="pin-dot" style="fill:var(--ink)"/><text x="260" y="147">Tokyo</text></g>
+        <g class="map-pin" data-stage="yufuin"><circle cx="125" cy="320" r="16" fill="none" style="pointer-events:all"/><circle cx="125" cy="320" r="6" class="pin-dot" style="fill:var(--kaki)"/><text x="133" y="333">Yufuin</text></g>
+        <g class="map-pin" data-stage="fukuoka"><circle cx="100" cy="300" r="16" fill="none" style="pointer-events:all"/><circle cx="100" cy="300" r="6" class="pin-dot" style="fill:var(--icho)"/><text x="60" y="282">Fukuoka</text></g>
+        <g class="map-pin" data-stage="busan"><circle cx="55" cy="320" r="16" fill="none" style="pointer-events:all"/><circle cx="55" cy="320" r="6" class="pin-dot" style="fill:var(--umi)"/><text x="8" y="345">Busan</text></g>
+        <g class="map-pin" data-stage="hiroshima"><circle cx="165" cy="260" r="16" fill="none" style="pointer-events:all"/><circle cx="165" cy="260" r="6" class="pin-dot" style="fill:var(--momiji)"/><text x="173" y="257">Hiroshima</text></g>
+        <g class="map-pin" data-stage="okayama"><circle cx="195" cy="235" r="16" fill="none" style="pointer-events:all"/><circle cx="195" cy="235" r="6" class="pin-dot" style="fill:var(--kaki)"/><text x="203" y="232">Okayama</text></g>
+        <g class="map-pin" data-stage="osaka"><circle cx="222" cy="205" r="16" fill="none" style="pointer-events:all"/><circle cx="222" cy="205" r="6" class="pin-dot" style="fill:var(--icho)"/><text x="230" y="202">Osaka</text></g>
+      </svg>
+      <p class="map-caption">Carte simplifiée pour situer les étapes les unes par rapport aux autres, pas pour la navigation. Touchez un point pour ouvrir l'étape.</p>
+    </div>
   </section>
 
   <!-- ============ LOGEMENTS ============ -->
@@ -781,6 +832,35 @@ STAGES.forEach((s,i)=>{
       e.stopPropagation();
       showDay(i, +dayEl.dataset.day);
     });
+  });
+});
+
+/* Bascule Liste / Carte */
+const itinToggle = document.getElementById("itinToggle");
+const itinHint = document.getElementById("itinHint");
+const mapCard = document.getElementById("mapCard");
+const HINT_LISTE = "Touchez une étape, puis un jour pour le détail heure par heure";
+const HINT_CARTE = "Vue d'ensemble du parcours, pas pour la navigation";
+function setItinMode(mode){
+  itinToggle.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.mode===mode));
+  timeline.hidden = mode === "carte";
+  mapCard.hidden = mode !== "carte";
+  itinHint.textContent = mode === "carte" ? HINT_CARTE : HINT_LISTE;
+}
+itinToggle.querySelectorAll("button").forEach(b=>{
+  b.addEventListener("click", ()=> setItinMode(b.dataset.mode));
+});
+
+/* Carte : un point ouvre l'étape correspondante dans la liste */
+mapCard.querySelectorAll(".map-pin").forEach(pin=>{
+  pin.addEventListener("click", ()=>{
+    const idx = STAGES.findIndex(s=>s.id===pin.dataset.stage);
+    if(idx<0) return;
+    setItinMode("liste");
+    const stageEl = timeline.children[idx];
+    const head = stageEl.querySelector(".stage-head");
+    if(head.getAttribute("aria-expanded") !== "true") head.click();
+    stageEl.scrollIntoView({behavior:"smooth", block:"start"});
   });
 });
 
