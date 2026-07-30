@@ -15,8 +15,25 @@ All content lives in plain JS data arrays inside the `<script>` block — edit t
 - **`STAGES`** — array of one object per leg/city: `dates`, `nights`, `lodging`, `days` (day-by-day notes), `next` (transit to the following stage). This one array also drives the "logements" tab (lodging is rendered straight from `STAGES[].lodging` — there's no separate stays array) and the timeline countdown/highlight logic.
 - **`TODOS`** — outstanding bookings with deadlines (`dl`) and an urgency flag (`hot`). Check these off as things get booked; keep the deadline text current.
 - **`INFOS`** — practical info cards (momiji timing, weather/gear, the holiday-weekend trick, transport summary, 5-person logistics).
+- **`MAP`** — **generated, do not hand-edit.** Sits between `/* MAP:BEGIN */` and `/* MAP:END */`. Regenerate with `python3 tools/build_map.py` (see below).
 
-Site content is in **French** (for the group) — keep new content in French to match. When you make a substantive itinerary change, bump the footer note (currently `v2 · mis à jour juillet 2026`).
+Site content is in **French** (for the group) — keep new content in French to match. When you make a substantive itinerary change, bump the footer note (currently `v3 · mis à jour juillet 2026`).
+
+## The map (`tools/build_map.py`)
+
+The Itinéraire tab has a Liste/Carte toggle. The Carte is a real map of Japan + South Korea on a dark card: tapping a city, or stepping with the arrows, flies the SVG `viewBox` to that stage — pulling back toward the whole country in proportion to how far the two stages are apart, so Busan→Tokyo sweeps out and Okayama→Osaka barely moves.
+
+**Cities are never placed by eye.** `tools/build_map.py` projects both the Natural Earth coastlines and each city's real latitude/longitude through the same Mercator projection, so a pin is correct by construction. An earlier hand-drawn version got thrown away precisely because eyeballing pixel positions produced a map that looked like clip art and put cities in the sea.
+
+To change what the map shows — add a city, add a landmark, adjust the crop or zoom level — edit the constants at the top of `tools/build_map.py` (`CITIES`, `LANDMARKS`, `MIN_LAT`, `ZOOM_HALF_W`) and run:
+
+```bash
+python3 tools/build_map.py
+```
+
+It rewrites the `MAP` block inside `index.html` in place and is idempotent. Source geodata is cached at `tools/.ne50_cache.geojson` (gitignored, ~3 MB); pass `--refetch` to re-download. Natural Earth is public domain, so no attribution is legally required — the credit line under the map is courtesy.
+
+Route legs and their transport type (rail / sea / air) live in the `LEGS` array in `index.html`, not in the generator, because they describe the trip rather than the geography.
 
 ## Confirmed trip structure (accommodations locked, do not treat as tentative)
 

@@ -1,0 +1,4 @@
+# Source geodata cached by tools/build_map.py (3 MB, re-downloaded on demand)
+tools/.ne50_cache.geojson
+.DS_Store
+__pycache__/
