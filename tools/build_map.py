@@ -81,9 +81,11 @@ LANDMARKS = [
 WIDTH = 1000.0
 PAD = 12.0
 
-# Half-width of a stage's zoom window, in projected units. Tuned so a stage
-# fills the frame with enough surrounding coast to stay recognisable.
-ZOOM_HALF_W = 78.0
+# Width of a stage's zoom window, in projected units. Tuned so a stage fills the
+# frame with enough surrounding coast to stay recognisable. The matching height
+# is derived in the page from the real viewport, not here: the map is now
+# full-screen, so only the browser knows the aspect ratio to fill.
+ZOOM_WIDTH = 156.0
 
 
 def mercator(lat, lon):
@@ -194,27 +196,13 @@ def main():
     cities = place(CITIES)
     landmarks = place(LANDMARKS)
 
-    # A zoom window per stage, centred on that stage's city.
-    aspect = height / WIDTH
-    views = {}
-    for c in cities:
-        half_w = ZOOM_HALF_W
-        half_h = half_w * aspect
-        views[c["stage"]] = {
-            "x": round(c["x"] - half_w, 1),
-            "y": round(c["y"] - half_h, 1),
-            "w": round(half_w * 2, 1),
-            "h": round(half_h * 2, 1),
-        }
-
     payload = {
         "width": round(WIDTH, 1),
         "height": round(height, 1),
+        "zoomWidth": ZOOM_WIDTH,
         "paths": paths,
         "cities": cities,
         "landmarks": landmarks,
-        "views": views,
-        "home": {"x": 0, "y": 0, "w": round(WIDTH, 1), "h": round(height, 1)},
     }
 
     line = "const MAP = " + json.dumps(payload, ensure_ascii=False) + ";"

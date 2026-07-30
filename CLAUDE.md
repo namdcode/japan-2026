@@ -19,9 +19,21 @@ All content lives in plain JS data arrays inside the `<script>` block — edit t
 
 Site content is in **French** (for the group) — keep new content in French to match. When you make a substantive itinerary change, bump the footer note (currently `v3 · mis à jour juillet 2026`).
 
-## The map (`tools/build_map.py`)
+## The map — this is the primary view
 
-The Itinéraire tab has a Liste/Carte toggle. The Carte is a real map of Japan + South Korea on a dark card: tapping a city, or stepping with the arrows, flies the SVG `viewBox` to that stage — pulling back toward the whole country in proportion to how far the two stages are apart, so Busan→Tokyo sweeps out and Okayama→Osaka barely moves.
+**Carte is the default view and the point of the page.** It is a full-screen dark map (`#mapView`, `body.mode-carte`) of Japan + South Korea in the momiji palette. Liste is a deliberate fallback that Nam intends to delete once the map is trusted — so when the two disagree, the map wins, and don't invest in Liste.
+
+Layout in Carte:
+- **Overview** (no stage selected): the trip summary — kicker, title, dates, chips — sits over the map and fades out on selection.
+- **Selecting a stage** (tap a pin, the arrows, or hover on desktop) flies the `viewBox` there and reveals two panels: a **lodging card** and an **activities sheet** listing that stage's days (tapping one opens the existing full-screen day sheet).
+- Mobile stacks them (lodging top, activities bottom); at ≥760px they move to the left and right edges. Controls and legend stay bottom in both.
+
+Three things are easy to break here:
+- **`freeRect()` / `focusPoint()`** — the panels cover part of the frame, so the selected city is centred in what remains visible, not in the frame. This is why the same code works for both the stacked and side-by-side layouts. If you add or move a panel, teach `freeRect()` about it or cities will end up behind it.
+- **`stageView()` scales the zoom by `frameWidth / bandWidth`** so the visible band always shows the same geographic extent. Without it, a wide screen whose panels eat both edges magnifies the coastline until it looks angular.
+- **Sizing reads `getBoundingClientRect()`, never `clientWidth`** — the latter returns 0 on `<svg>` in several engines, which silently sizes everything against the fallback. A `ResizeObserver` on `#mapView` refits on rotation, resize, and the list→map switch (the frame has no size until it is displayed).
+
+Tapping a city, or stepping with the arrows, flies the SVG `viewBox` to that stage — pulling back toward the whole country in proportion to how far the two stages are apart, so Busan→Tokyo sweeps out and Okayama→Osaka barely moves.
 
 **Cities are never placed by eye.** `tools/build_map.py` projects both the Natural Earth coastlines and each city's real latitude/longitude through the same Mercator projection, so a pin is correct by construction. An earlier hand-drawn version got thrown away precisely because eyeballing pixel positions produced a map that looked like clip art and put cities in the sea.
 
