@@ -12,11 +12,41 @@ There is no separate canonical Markdown itinerary for this repo — **`index.htm
 
 All content lives in plain JS data arrays inside the `<script>` block — edit these directly rather than inventing a parallel doc:
 
-- **`STAGES`** — array of one object per leg/city: `dates`, `nights`, `lodging`, `days` (day-by-day notes), `next` (transit to the following stage). This one array also drives the "logements" tab (lodging is rendered straight from `STAGES[].lodging` — there's no separate stays array) and the timeline countdown/highlight logic.
+- **`STAGES`** — array of one object per leg/city: `dates`, `nights`, `lodging`, `days` (day-by-day notes with an hour-by-hour `blocks` list). This one array feeds everything on the map: the lodging card (`STAGES[].lodging`, no separate stays array), the activities sheet, and the day detail. `id` must match the `stage` of a city in `tools/build_map.py`, or that stage gets no pin.
 - **`TODOS`** — outstanding bookings with deadlines (`dl`) and an urgency flag (`hot`). Check these off as things get booked; keep the deadline text current.
-- **`INFOS`** — practical info cards (momiji timing, weather/gear, the holiday-weekend trick, transport summary, 5-person logistics).
+- **`INFOS`** — practical info cards (momiji timing, weather/gear, the holiday-weekend trick, transport summary, 5-person logistics). Shown in the `À faire` sheet.
+- **`MAP`** — **generated, do not hand-edit.** Sits between `/* MAP:BEGIN */` and `/* MAP:END */`. Regenerate with `python3 tools/build_map.py` (see below).
 
-Site content is in **French** (for the group) — keep new content in French to match. When you make a substantive itinerary change, bump the footer note (currently `v2 · mis à jour juillet 2026`).
+Site content is in **French** (for the group) — keep new content in French to match. When you make a substantive itinerary change, bump the footer note (currently `v3 · mis à jour juillet 2026`).
+
+## The map — this is the primary view
+
+**The map is the whole page.** There is no longer a list view, a hero, or a tab bar — those were deleted once the map was trusted. `index.html` renders one full-screen dark map (`#mapView`) of Japan + South Korea in the momiji palette, plus two full-screen sheets that slide over it (`#daySheet`, `#extrasSheet`). There is a single dark palette; no light theme remains.
+
+Layout:
+- **Overview** (no stage selected): the trip summary — kicker, title, dates, chips — sits over the map and fades out on selection.
+- **Selecting a stage** (tap a pin, the arrows, or hover on desktop) flies the `viewBox` there and reveals two panels: a **lodging card** and an **activities sheet** listing that stage's days (tapping one opens the existing full-screen day sheet).
+- Mobile stacks them (lodging top, activities bottom); at ≥760px they move to the left and right edges. Controls and legend stay bottom in both.
+- **`À faire` in the top bar** opens `#extrasSheet`, holding the booking checklist (`TODOS`, with a live count badge) and the practical info cards (`INFOS`). These only ever existed in the deleted list view; they were moved here rather than dropped, because they carry the trip's hard deadlines.
+
+Three things are easy to break here:
+- **`freeRect()` / `focusPoint()`** — the panels cover part of the frame, so the selected city is centred in what remains visible, not in the frame. This is why the same code works for both the stacked and side-by-side layouts. If you add or move a panel, teach `freeRect()` about it or cities will end up behind it.
+- **`stageView()` scales the zoom by `frameWidth / bandWidth`** so the visible band always shows the same geographic extent. Without it, a wide screen whose panels eat both edges magnifies the coastline until it looks angular.
+- **Sizing reads `getBoundingClientRect()`, never `clientWidth`** — the latter returns 0 on `<svg>` in several engines, which silently sizes everything against the fallback. A `ResizeObserver` on `#mapView` refits on rotation, resize, and the list→map switch (the frame has no size until it is displayed).
+
+Tapping a city, or stepping with the arrows, flies the SVG `viewBox` to that stage — pulling back toward the whole country in proportion to how far the two stages are apart, so Busan→Tokyo sweeps out and Okayama→Osaka barely moves.
+
+**Cities are never placed by eye.** `tools/build_map.py` projects both the Natural Earth coastlines and each city's real latitude/longitude through the same Mercator projection, so a pin is correct by construction. An earlier hand-drawn version got thrown away precisely because eyeballing pixel positions produced a map that looked like clip art and put cities in the sea.
+
+To change what the map shows — add a city, add a landmark, adjust the crop or zoom level — edit the constants at the top of `tools/build_map.py` (`CITIES`, `LANDMARKS`, `MIN_LAT`, `ZOOM_HALF_W`) and run:
+
+```bash
+python3 tools/build_map.py
+```
+
+It rewrites the `MAP` block inside `index.html` in place and is idempotent. Source geodata is cached at `tools/.ne50_cache.geojson` (gitignored, ~3 MB); pass `--refetch` to re-download. Natural Earth is public domain, so no attribution is legally required — the credit line under the map is courtesy.
+
+Route legs and their transport type (rail / sea / air) live in the `LEGS` array in `index.html`, not in the generator, because they describe the trip rather than the geography.
 
 ## Confirmed trip structure (accommodations locked, do not treat as tentative)
 
