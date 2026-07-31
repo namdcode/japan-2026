@@ -4,7 +4,7 @@ Site compagnon du voyage de groupe **Japon + Corée du Sud**, du **13 novembre a
 
 **👉 [Voir le site en ligne](https://namdcode.github.io/japan-2026/)**
 
-Tout est dans un seul fichier — [`index.html`](index.html) : itinéraire jour par jour, logements, checklist des réservations restantes, et infos pratiques (saison, transports, logistique à 5). Pensé mobile, avec countdown et petite pluie de feuilles d'érable.
+Tout est dans un seul fichier — [`index.html`](index.html) : une carte plein écran du parcours qu'on déplace et zoome au doigt, et sur laquelle on ouvre chaque étape (logement, jours, programme heure par heure), plus la checklist des réservations restantes et les infos pratiques (saison, transports, logistique à 5). Pensé mobile : les panneaux se replient pour rendre la carte, et le programme d'un jour zoome sur le lieu concerné.
 
 ## L'itinéraire en un coup d'œil
 
@@ -29,7 +29,7 @@ Hébergements **confirmés** du 13/11 au 4 déc, aucune nuit manquante. Il reste
 - 🔥 **Ferry Hakata ⇄ Busan** (Camellia Line) — Economy Bargain, non remboursable
 - USJ Express Pass, sièges shinkansen ×5, traductions JAF des permis, minivan Kyushu, restos pour 5
 
-Liste complète et à jour → onglet **Checklist** du site.
+Liste complète et à jour → bouton **À faire** en haut du site.
 
 ## Modifier l'itinéraire
 
