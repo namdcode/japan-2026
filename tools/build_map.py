@@ -63,18 +63,30 @@ CITIES = [
     ("haneda",     "Haneda",     35.5494,  139.7798, "tokyo2"),
 ]
 
-# Secondary places worth showing when zoomed into a stage. Not clickable pins.
+# Secondary places worth showing when zoomed into a stage. Not clickable pins,
+# but a day's programme can point at one (`place:` in STAGES) to zoom there.
 LANDMARKS = [
-    ("kamakura",   "Kamakura",   35.3192,  139.5467, "tokyo1"),
-    ("mitaka",     "Mitaka",     35.6962,  139.5601, "tokyo1"),
-    ("kuju",       "Kujū",       33.0833,  131.2500, "yufuin"),
-    ("kurokawa",   "Kurokawa",   33.0800,  131.0300, "yufuin"),
-    ("dazaifu",    "Dazaifu",    33.5150,  130.5350, "fukuoka"),
-    ("miyajima",   "Miyajima",   34.2959,  132.3197, "hiroshima"),
-    ("kurashiki",  "Kurashiki",  34.5850,  133.7720, "okayama"),
-    ("himeji",     "Himeji",     34.8154,  134.6854, "osaka"),
-    ("kyoto",      "Kyoto",      35.0116,  135.7681, "osaka"),
-    ("nara",       "Nara",       34.6851,  135.8048, "osaka"),
+    ("kamakura",    "Kamakura",    35.3192,  139.5467, "tokyo1"),
+    ("mitaka",      "Mitaka",      35.6962,  139.5601, "tokyo1"),
+    ("yomiuriland", "PokéPark",    35.6280,  139.5169, "tokyo1"),
+    ("kuju",        "Kujū",        33.0833,  131.2500, "yufuin"),
+    ("otsurihashi", "Ōtsurihashi", 33.1861,  131.2039, "yufuin"),
+    ("kurokawa",    "Kurokawa",    33.0800,  131.0300, "yufuin"),
+    ("kusasenri",   "Kusasenri",   32.8853,  131.0533, "yufuin"),
+    # Étapes de la journée de transfert Yufuin → Fukuoka : rattachées à Yufuin,
+    # car c'est l'étape à laquelle appartient la journée du 19.
+    ("itoshima",    "Itoshima",    33.6465,  130.1893, "yufuin"),
+    ("kora",        "Kōra Taisha", 33.2847,  130.5561, "yufuin"),
+    ("dazaifu",     "Dazaifu",     33.5150,  130.5350, "fukuoka"),
+    ("gamcheon",    "Gamcheon",    35.0975,  129.0106, "busan"),
+    ("yonggungsa",  "Yonggungsa",  35.1884,  129.2233, "busan"),
+    ("taejongdae",  "Taejongdae",  35.0520,  129.0873, "busan"),
+    ("miyajima",    "Miyajima",    34.2959,  132.3197, "hiroshima"),
+    ("kurashiki",   "Kurashiki",   34.5850,  133.7720, "okayama"),
+    ("himeji",      "Himeji",      34.8154,  134.6854, "osaka"),
+    ("kyoto",       "Kyoto",       35.0116,  135.7681, "osaka"),
+    ("nara",        "Nara",        34.6851,  135.8048, "osaka"),
+    ("usj",         "USJ",         34.6654,  135.4323, "osaka"),
 ]
 
 # Rendering box. Height follows from the projection's aspect ratio.
