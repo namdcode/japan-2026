@@ -125,6 +125,10 @@
   /* La carte est la vue principale. Fond sombre chaud plutôt que noir neutre :
      on garde la palette momiji, les oranges et les ors doivent y rester chez eux. */
   #mapView{
+    /* 0 = fiche posée au-dessus du HUD, 1 = fiche plein écran. Portée par la vue
+       et non par la fiche : le HUD doit s'effacer au même rythme qu'elle monte,
+       et il n'est pas dedans. */
+    --lift:0;
     position:fixed; inset:0; z-index:60;
     background:#0D0B09; color:#F4E9DA;
     overflow:hidden;
@@ -285,7 +289,6 @@
      que de recouvrir l'écran : la carte reste visible et continue de suivre. */
   .stage-sheet{
     --rise:calc(84px + env(safe-area-inset-bottom));
-    --lift:0;                       /* 0 = posée au-dessus du HUD, 1 = plein écran */
     position:absolute; left:0; right:0; z-index:5;
     bottom:var(--rise);
     padding:0 12px;
@@ -334,6 +337,34 @@
   }
   .stage-sheet .head .fold{transition:transform .3s var(--spring)}
   .stage-sheet.folded .head .fold{transform:rotate(180deg)}
+
+  /* ---------- pied de page, plein écran seulement ---------- */
+  /* Les flèches du HUD servent la carte ; plein écran il n'y a plus de carte, et
+     les faire flotter par-dessus une fiche opaque les afficherait comme une
+     pièce rapportée. Elles reprennent donc leur rôle ici, nommées : « suivant »
+     veut dire quelque chose quand on lit le jeudi. Même règle qu'en bas de la
+     carte — la liste passe d'une étape à l'autre, un jour ouvert passe d'un
+     jour à l'autre, par-dessus les frontières d'étape. */
+  .stage-sheet .foot{display:none}
+  .foot button{
+    flex:1; min-width:0; display:flex; align-items:center; gap:9px;
+    font:inherit; text-align:left; cursor:pointer; color:inherit;
+    background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08);
+    border-radius:13px; padding:9px 12px;
+  }
+  .foot button:active{background:rgba(255,255,255,.10)}
+  .foot button:disabled{opacity:.26; cursor:default}
+  .foot button.next{flex-direction:row-reverse; text-align:right}
+  .foot .arrow{flex:none; font-size:14px; color:#A8927A}
+  .foot .t{flex:1; min-width:0}
+  .foot .k{
+    display:block; font-size:9.5px; font-weight:800; color:#7A6853;
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+  .foot .n{
+    display:block; font-size:12.5px; font-weight:700; margin-top:1px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .stage-sheet .scroll{max-height:32vh; overflow-y:auto; -webkit-overflow-scrolling:touch}
   .stage-sheet .d{
     display:flex; gap:10px; align-items:flex-start; width:100%;
@@ -436,13 +467,33 @@
     .stage-sheet.full .inner{
       max-width:none; background:rgba(20,15,12,.985); box-shadow:none;
     }
-    /* L'encoche mange le haut de l'écran une fois la fiche bord à bord. */
-    .stage-sheet.full .grab{padding-top:calc(7px + env(safe-area-inset-top))}
+    /* La fiche s'arrête sous la barre du haut plutôt que de la recouvrir : le
+       bouton Infos est ce qu'on veut justement sous la main en lisant un jour
+       (se déplacer, à table, repères), et l'y laisser évite de le reloger. La
+       barre perd son dégradé, qui n'a de sens que sur la carte. */
+    #mapView.sheet-open .map-top{
+      background:rgba(20,15,12,.985); z-index:13;
+      border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    /* Le HUD et la légende appartiennent à la carte : ils s'effacent à mesure
+       que la fiche la recouvre, plutôt que de se retrouver un instant côte à
+       côte avec le pied de la fiche, qui reprend leur rôle. */
+    .map-hud, .map-legend{opacity:calc(1 - var(--lift) * 2)}
     /* La hauteur du volet ne peut plus venir de son contenu : l'`.inner` est
-       fixé à la hauteur de l'écran, c'est à la liste de prendre ce qui reste. */
-    .stage-sheet.full .scroll{
-      max-height:none; height:var(--pane-h,auto);
-      padding-bottom:env(safe-area-inset-bottom);
+       fixé à la hauteur de l'écran, c'est à la liste de prendre ce qui reste.
+       Pendant le geste aussi — sans quoi la fiche s'agrandirait autour d'une
+       liste restée à sa taille, et on tirerait vers le haut un grand vide qui
+       ne se remplit qu'au relâché. */
+    .stage-sheet.full .scroll,
+    .stage-sheet.dragging .scroll{max-height:none; height:var(--pane-h,auto)}
+    .stage-sheet.full .foot,
+    .stage-sheet.dragging .foot{
+      display:flex; gap:8px; padding:9px 12px;
+      padding-bottom:calc(9px + env(safe-area-inset-bottom));
+      border-top:1px solid rgba(255,255,255,.07);
+      /* Présent dès le début du geste pour que la place lui soit réservée,
+         mais il n'apparaît qu'à mesure qu'on approche du plein écran. */
+      opacity:calc(var(--lift) * 2 - 1);
     }
   }
 
@@ -532,6 +583,19 @@
         </section>
 
       </div>
+
+      <!-- Navigation du plein écran : masquée tant que la carte est visible,
+           c'est le HUD qui s'en charge alors. -->
+      <nav class="foot" id="sheetFoot">
+        <button id="footPrev" type="button">
+          <span class="arrow">&#8592;</span>
+          <span class="t"><span class="k" id="footPrevKind"></span><span class="n" id="footPrevName"></span></span>
+        </button>
+        <button id="footNext" class="next" type="button">
+          <span class="arrow">&#8594;</span>
+          <span class="t"><span class="k" id="footNextKind"></span><span class="n" id="footNextName"></span></span>
+        </button>
+      </nav>
     </div>
   </div>
 
@@ -1542,7 +1606,15 @@ const mapsUrlFor = s => "https://www.google.com/maps/search/?api=1&query=" + enc
 const sheetGrab     = document.getElementById("sheetGrab");
 const sheetHead     = document.getElementById("sheetHead");
 const dayHead       = document.getElementById("dayHead");
+const sheetFoot     = document.getElementById("sheetFoot");
+const footPrev      = document.getElementById("footPrev");
+const footNext      = document.getElementById("footNext");
+const footPrevKind  = document.getElementById("footPrevKind");
+const footNextKind  = document.getElementById("footNextKind");
+const footPrevName  = document.getElementById("footPrevName");
+const footNextName  = document.getElementById("footNextName");
 const lodgingToggle = document.getElementById("lodgingToggle");
+const mapTopBar     = document.querySelector(".map-top");
 
 let lodgingOpen = true;    /* la carte logement est-elle dépliée */
 let openDay = null;        /* {si, di} du jour ouvert dans le second volet */
@@ -1596,14 +1668,18 @@ function paneHeights(){
   const grab = sheetGrab.offsetHeight;
   const head = pane.querySelector(".head").offsetHeight;
   const full = stageSheet.classList.contains("full");
-  const lift = stageSheet.style.getPropertyValue("--lift");
+  const lift = mapView.style.getPropertyValue("--lift");
   if(full) stageSheet.classList.remove("full");
-  stageSheet.style.setProperty("--lift", "0");
+  mapView.style.setProperty("--lift", "0");
   const natural = pane.offsetHeight;
   if(full) stageSheet.classList.add("full");
-  stageSheet.style.setProperty("--lift", lift || "0");
+  mapView.style.setProperty("--lift", lift || "0");
   return {grab, head, natural};
 }
+
+/* Hauteur du plein écran : tout l'écran sauf la barre du haut, que la fiche
+   laisse dépasser pour garder le bouton Infos accessible. */
+const fullHeight = ()=> frameSize().h - mapTopBar.getBoundingClientRect().height;
 
 /* Les trois positions, en pixels. Le plein écran ne descend jamais en dessous
    de la hauteur ouverte : sur un petit écran très rempli, les deux se rejoignent
@@ -1614,7 +1690,7 @@ function snapPoints(){
   return {
     folded: m.grab + m.head,
     normal,
-    full: wide() ? normal : Math.max(frameSize().h, normal)
+    full: wide() ? normal : Math.max(fullHeight(), normal)
   };
 }
 
@@ -1626,9 +1702,11 @@ function sizeSheet(){
   if(sheetMode === "full" && wide()) markSheet("normal");
   const m = paneHeights();
   if(sheetMode === "full"){
-    const h = Math.max(frameSize().h, m.grab + m.natural);
+    const h = Math.max(fullHeight(), m.grab + m.natural);
     sheetInner.style.height = h + "px";
-    stageSheet.style.setProperty("--pane-h", Math.max(0, h - m.grab - m.head) + "px");
+    /* Ce qui reste au volet une fois la poignée, l'en-tête et le pied servis. */
+    stageSheet.style.setProperty("--pane-h",
+      Math.max(0, h - m.grab - m.head - sheetFoot.offsetHeight) + "px");
   } else {
     sheetInner.style.height =
       (m.grab + (sheetMode === "folded" ? m.head : m.natural)) + "px";
@@ -1643,7 +1721,10 @@ function markSheet(mode){
   sheetMode = mode;
   stageSheet.classList.toggle("folded", mode === "folded");
   stageSheet.classList.toggle("full", mode === "full");
-  stageSheet.style.setProperty("--lift", mode === "full" ? "1" : "0");
+  /* La barre du haut se pose sur la fiche : c'est à la vue de le savoir, elle
+     est au-dessus de la fiche dans le document et hors de sa portée. */
+  mapView.classList.toggle("sheet-open", mode === "full");
+  mapView.style.setProperty("--lift", mode === "full" ? "1" : "0");
 }
 
 function setSheet(mode){
@@ -1842,15 +1923,21 @@ document.getElementById("dayBack").addEventListener("click", e=>{
       if(Math.abs(dy) < 6) return;
       start.live = true;
       stageSheet.classList.add("dragging");
+      /* Mesuré une fois `dragging` posé : c'est cette classe qui fait exister le
+         pied, dont la place doit être décomptée comme en plein écran. */
+      const pane = openDay ? paneDay : paneList;
+      start.chrome = sheetGrab.offsetHeight
+        + pane.querySelector(".head").offsetHeight + sheetFoot.offsetHeight;
     }
     const s = start.snap;
     const px = Math.min(s.full, Math.max(s.folded, start.h - dy));
     sheetInner.style.height = px + "px";
+    stageSheet.style.setProperty("--pane-h", Math.max(0, px - start.chrome) + "px");
     /* Au-delà de sa hauteur naturelle, la fiche descend aussi vers le bas de
        l'écran : les deux mouvements ensemble la mènent bord à bord. */
     const span = s.full - s.normal;
     const lift = span > 0 ? Math.min(1, Math.max(0, (px - s.normal) / span)) : 0;
-    stageSheet.style.setProperty("--lift", lift.toFixed(3));
+    mapView.style.setProperty("--lift", lift.toFixed(3));
   });
 
   h.addEventListener("pointerup", e=>{
@@ -1961,12 +2048,43 @@ function updateNav(){
     const p = dayPos();
     mapPrev.disabled = p <= 0;
     mapNext.disabled = p >= FLAT_DAYS.length - 1;
+    updateFoot();
     return;
   }
   const i = MAP_ORDER.indexOf(currentStage);
   mapPrev.disabled = i <= 0;
   mapNext.disabled = i >= MAP_ORDER.length - 1;
+  updateFoot();
 }
+
+/* Le pied du plein écran dit *où* mènent les flèches, là où le HUD se contente
+   de deux chevrons : sur une fiche qui remplit l'écran, la carte ne donne plus
+   ce repère. Il suit la même règle de contexte que le HUD et délègue le
+   déplacement à ses boutons, pour n'avoir qu'un seul chemin à maintenir. */
+function footTarget(dir){
+  if(openDay){
+    const t = FLAT_DAYS[dayPos() + dir];
+    if(!t) return null;
+    const s = STAGES[t.si];
+    return {kind: dir < 0 ? "jour précédent" : "jour suivant",
+            name:`${s.emoji} ${s.days[t.di].d}`};
+  }
+  const s = STAGES.find(x=>x.id === MAP_ORDER[MAP_ORDER.indexOf(currentStage) + dir]);
+  return s ? {kind: dir < 0 ? "étape précédente" : "étape suivante",
+              name:`${s.emoji} ${s.name}`} : null;
+}
+
+function updateFoot(){
+  [[-1, footPrev, footPrevKind, footPrevName],
+   [ 1, footNext, footNextKind, footNextName]].forEach(([dir, btn, kind, name])=>{
+    const t = footTarget(dir);
+    btn.disabled = !t;
+    kind.textContent = t ? t.kind : "";
+    name.textContent = t ? t.name : "—";
+  });
+}
+footPrev.addEventListener("click", ()=> mapPrev.click());
+footNext.addEventListener("click", ()=> mapNext.click());
 
 function focusStage(id, opts){
   if(!cityByStage[id]) return;
