@@ -284,11 +284,13 @@
      Ouvrir un jour fait glisser vers la gauche — le sens du chevron — plutôt
      que de recouvrir l'écran : la carte reste visible et continue de suivre. */
   .stage-sheet{
+    --rise:calc(84px + env(safe-area-inset-bottom));
+    --lift:0;                       /* 0 = posée au-dessus du HUD, 1 = plein écran */
     position:absolute; left:0; right:0; z-index:5;
-    bottom:calc(84px + env(safe-area-inset-bottom));
+    bottom:var(--rise);
     padding:0 12px;
     transform:translateY(14px); opacity:0; pointer-events:none;
-    transition:opacity .3s ease, transform .3s ease;
+    transition:opacity .3s ease, transform .34s var(--spring);
   }
   .stage-sheet.show{transform:none; opacity:1; pointer-events:auto}
   .stage-sheet .inner{
@@ -303,6 +305,9 @@
     max-width:620px; margin:0 auto;
     transition:height .34s var(--spring);
   }
+  /* Pendant le glissement, la hauteur et la descente suivent le doigt : toute
+     transition les ferait traîner d'un tiers de seconde derrière lui. */
+  .stage-sheet.dragging,
   .stage-sheet.dragging .inner{transition:none}
   .grab{
     display:flex; justify-content:center; padding:7px 0 2px; cursor:grab;
@@ -413,6 +418,33 @@
 
   .map-nav button.ghost{display:none}
   .map-nav button.ghost.show{display:flex}
+
+  /* ---------- troisième position : plein écran (mobile seulement) ---------- */
+  /* Tirer l'en-tête vers le haut agrandit la fiche jusqu'à couvrir la carte : la
+     journée se lit alors comme une page, sans quitter l'étape ni perdre le fil.
+     Deux mouvements se combinent — `sizeSheet()` pose la hauteur de l'`.inner`,
+     et --lift fait descendre le conteneur des 84 px qui le séparaient du bas de
+     l'écran, pour que la fiche finisse bord à bord. En grand écran la fiche est
+     déjà sur le côté et ne masque rien : la position n'y existe pas. */
+  @media (max-width:759.98px){
+    .stage-sheet.show{transform:translateY(calc(var(--rise) * var(--lift)))}
+    /* Gouttière et arrondis se referment au même rythme que le reste : accrochés
+       à la classe, ils sauteraient d'un coup à la fin du geste. */
+    .stage-sheet{padding:0 calc(12px * (1 - var(--lift)))}
+    .stage-sheet .inner{border-radius:calc(17px * (1 - var(--lift)))}
+    .stage-sheet.full{z-index:12}
+    .stage-sheet.full .inner{
+      max-width:none; background:rgba(20,15,12,.985); box-shadow:none;
+    }
+    /* L'encoche mange le haut de l'écran une fois la fiche bord à bord. */
+    .stage-sheet.full .grab{padding-top:calc(7px + env(safe-area-inset-top))}
+    /* La hauteur du volet ne peut plus venir de son contenu : l'`.inner` est
+       fixé à la hauteur de l'écran, c'est à la liste de prendre ce qui reste. */
+    .stage-sheet.full .scroll{
+      max-height:none; height:var(--pane-h,auto);
+      padding-bottom:env(safe-area-inset-bottom);
+    }
+  }
 
   /* Écran large : la feuille passe sur le côté, la carte respire au centre. */
   @media (min-width:760px){
@@ -1179,7 +1211,9 @@ function freeRect(){
   } else {
     if(shown(mapOverview))  top    = Math.max(top, box(mapOverview).bottom);
     if(shown(lodgingCard))  top    = Math.max(top, box(lodgingCard).bottom);
-    if(shown(stageSheet))   bottom = Math.min(bottom, sheetTop());
+    /* Plein écran, la fiche ne laisse aucune bande : la retenir donnerait un
+       cadre retourné (bas au-dessus du haut) et une visée absurde. */
+    if(shown(stageSheet) && sheetMode !== "full") bottom = Math.min(bottom, sheetTop());
   }
   return {left, right, top, bottom, fw, fh};
 }
@@ -1511,8 +1545,16 @@ const dayHead       = document.getElementById("dayHead");
 const lodgingToggle = document.getElementById("lodgingToggle");
 
 let lodgingOpen = true;    /* la carte logement est-elle dépliée */
-let folded = false;        /* la fiche d'étape est-elle réduite à son en-tête */
 let openDay = null;        /* {si, di} du jour ouvert dans le second volet */
+
+/* La fiche d'étape a trois positions, dans cet ordre de hauteur : réduite à son
+   en-tête, ouverte à la hauteur de son contenu, ou plein écran. Le plein écran
+   n'existe que sur téléphone — en grand écran la fiche est déjà sur le côté et
+   ne recouvre rien, il n'y a rien à dégager. */
+const MODES = ["folded", "normal", "full"];
+const wide = ()=> matchMedia("(min-width:760px)").matches;
+const topMode = ()=> wide() ? 1 : 2;
+let sheetMode = "normal";
 
 /* Sur un téléphone, logement + fiche couvrent la moitié de l'écran. Les deux se
    replient donc, et la carte se recentre ensuite sur ce qui reste visible. */
@@ -1543,28 +1585,83 @@ function setLodging(open){
 lodgingToggle.addEventListener("click", ()=> setLodging(!lodgingOpen));
 lodgingToggle.classList.toggle("on", lodgingOpen);
 
-/* La hauteur de la fiche est posée en pixels : c'est ce qui permet d'animer le
-   passage liste → programme (deux volets de hauteurs différentes) et le repli,
-   avec la même transition. */
-function sizeSheet(){
+/* Hauteurs de référence du volet courant. `natural` se mesure hors plein écran :
+   celui-ci remplace la hauteur du volet par celle de l'écran et referme la
+   gouttière, si bien que mesuré tel quel il donnerait la position « ouverte »
+   pour égale au plein écran, et la fiche ne pourrait plus en redescendre. On
+   défait donc les deux le temps de la lecture — synchrone, rien n'est peint
+   entre les deux. */
+function paneHeights(){
   const pane = openDay ? paneDay : paneList;
+  const grab = sheetGrab.offsetHeight;
   const head = pane.querySelector(".head").offsetHeight;
-  sheetInner.style.height =
-    (sheetGrab.offsetHeight + (folded ? head : pane.offsetHeight)) + "px";
+  const full = stageSheet.classList.contains("full");
+  const lift = stageSheet.style.getPropertyValue("--lift");
+  if(full) stageSheet.classList.remove("full");
+  stageSheet.style.setProperty("--lift", "0");
+  const natural = pane.offsetHeight;
+  if(full) stageSheet.classList.add("full");
+  stageSheet.style.setProperty("--lift", lift || "0");
+  return {grab, head, natural};
 }
 
-function setFolded(v){
-  folded = v;
-  stageSheet.classList.toggle("folded", v);
+/* Les trois positions, en pixels. Le plein écran ne descend jamais en dessous
+   de la hauteur ouverte : sur un petit écran très rempli, les deux se rejoignent
+   et le geste n'a alors plus qu'un cran. */
+function snapPoints(){
+  const m = paneHeights();
+  const normal = m.grab + m.natural;
+  return {
+    folded: m.grab + m.head,
+    normal,
+    full: wide() ? normal : Math.max(frameSize().h, normal)
+  };
+}
+
+/* La hauteur de la fiche est posée en pixels : c'est ce qui permet d'animer le
+   passage liste → programme (deux volets de hauteurs différentes), le repli et
+   le plein écran avec la même transition. */
+function sizeSheet(){
+  /* Une rotation peut faire passer en grand écran alors qu'on était déplié. */
+  if(sheetMode === "full" && wide()) markSheet("normal");
+  const m = paneHeights();
+  if(sheetMode === "full"){
+    const h = Math.max(frameSize().h, m.grab + m.natural);
+    sheetInner.style.height = h + "px";
+    stageSheet.style.setProperty("--pane-h", Math.max(0, h - m.grab - m.head) + "px");
+  } else {
+    sheetInner.style.height =
+      (m.grab + (sheetMode === "folded" ? m.head : m.natural)) + "px";
+    stageSheet.style.removeProperty("--pane-h");
+  }
+}
+
+/* Poser l'état sans toucher aux hauteurs : showDay/closeDay enchaînent déjà sur
+   leur propre sizeSheet(), et le glissement pose les siennes au doigt. */
+function markSheet(mode){
+  if(wide() && mode === "full") mode = "normal";
+  sheetMode = mode;
+  stageSheet.classList.toggle("folded", mode === "folded");
+  stageSheet.classList.toggle("full", mode === "full");
+  stageSheet.style.setProperty("--lift", mode === "full" ? "1" : "0");
+}
+
+function setSheet(mode){
+  markSheet(mode);
   sizeSheet();
   recentre();
 }
+const stepMode = (from, dir)=>
+  MODES[Math.min(topMode(), Math.max(0, MODES.indexOf(from) + dir))];
 
 /* Replier un panneau agrandit la bande libre : la carte s'y recentre, sauf si
    l'utilisateur a lui-même déplacé la vue — on ne lui reprend pas la main.
    Le vol part tout de suite : freeRect lit la hauteur *visée* de la fiche, pas
-   celle qu'elle a au milieu de sa transition. */
+   celle qu'elle a au milieu de sa transition. Plein écran, il n'y a plus de
+   bande libre à viser : on laisse la carte où elle est pour la retrouver
+   intacte au repli. */
 function recentre(){
+  if(sheetMode === "full") return;
   if(!userMoved) flyTo(focusView(), {pullback:false});
 }
 
@@ -1577,7 +1674,9 @@ function dayLabel(day){
 
 function showStageSheet(stageId){
   const idx = STAGES.findIndex(x=>x.id === stageId);
-  if(idx < 0){ stageSheet.classList.remove("show"); return; }
+  /* Rendre la main à la carte remet la fiche à plat : la retrouver plein écran
+     au retour d'une vue d'ensemble n'aurait aucun sens. */
+  if(idx < 0){ stageSheet.classList.remove("show"); markSheet("normal"); return; }
   const s = STAGES[idx];
   sheetName.textContent = `${s.emoji} ${s.name}`;
   sheetMeta.textContent = `${s.dates} · ${s.nights}`;
@@ -1646,15 +1745,22 @@ function showDay(si, di, opts){
         </div>`).join("")
     : `<div class="day-block"><div class="content"><div class="desc">${day.summary}</div></div></div>`;
   dayBodyEl.querySelectorAll(".see").forEach(b=>{
-    b.addEventListener("click", ()=> setPlace(b.dataset.place));
+    b.addEventListener("click", ()=>{
+      /* « Voir », c'est demander la carte : plein écran, la fiche redescend
+         d'abord, sinon le vol se jouerait derrière elle. Les hauteurs sont
+         posées avant le vol pour qu'il vise déjà la bande libre à venir. */
+      if(sheetMode === "full"){ markSheet("normal"); sizeSheet(); }
+      setPlace(b.dataset.place);
+    });
   });
   dayBodyEl.scrollTop = 0;
 
   sheetDays.querySelectorAll(".d").forEach(b=>{
     b.classList.toggle("on", +b.dataset.day === di);
   });
-  folded = false;
-  stageSheet.classList.remove("folded");
+  /* Repliée, la fiche n'afficherait pas le programme qu'on vient d'ouvrir. En
+     plein écran on y reste : c'est justement la position de lecture. */
+  if(sheetMode === "folded") markSheet("normal");
   stageSheet.classList.add("day-open");
   paneDay.setAttribute("aria-hidden", "false");
   paneList.setAttribute("aria-hidden", "true");
@@ -1678,8 +1784,7 @@ function closeDay(opts){
   openDay = null;
   /* Revenir aux jours alors que la fiche est repliée n'afficherait rien :
      on la redéplie, c'est bien la liste qu'on est venu rechercher. */
-  folded = false;
-  stageSheet.classList.remove("folded");
+  if(sheetMode === "folded") markSheet("normal");
   stageSheet.classList.remove("day-open");
   paneDay.setAttribute("aria-hidden", "true");
   paneList.setAttribute("aria-hidden", "false");
@@ -1697,32 +1802,82 @@ document.getElementById("dayBack").addEventListener("click", e=>{
   else closeDay();
 });
 
-/* Replier / déplier : au clic sur l'en-tête, ou en le tirant vers le bas.
-   Le geste ne descend pas dans la liste, qui doit rester défilable. */
+/* Changer de position : au clic sur l'en-tête, ou en le tirant. Vers le bas on
+   replie, vers le haut on agrandit jusqu'au plein écran — la fiche suit le
+   doigt pendant tout le geste et s'accroche à la position la plus proche au
+   relâché. Le geste ne descend pas dans la liste, qui doit rester défilable. */
 [sheetGrab, sheetHead, dayHead].forEach(h=>{
   let start = null, swallow = false;
+
+  const stop = ()=>{
+    stageSheet.classList.remove("dragging");
+    start = null;
+  };
+
   h.addEventListener("click", e=>{
     /* Un glissement produit aussi un clic : sans ce garde-fou, il rebasculerait
-       aussitôt le repli que le geste vient de décider. */
+       aussitôt la position que le geste vient de décider. */
     if(swallow){ swallow = false; return; }
     if(e.target.closest(".icon-btn")) return;
-    setFolded(!folded);
+    /* Le clic ne fait que l'aller-retour en-tête ↔ contenu : le plein écran
+       reste au geste, pour qu'un appui distrait n'y bascule jamais. */
+    setSheet(sheetMode === "normal" ? "folded" : "normal");
   });
+
   h.addEventListener("pointerdown", e=>{
     /* Pas de capture sur un bouton de l'en-tête : elle redirigerait son clic. */
     if(e.target.closest(".icon-btn")){ start = null; return; }
-    start = {y:e.clientY};
+    start = {y:e.clientY, h:sheetInner.getBoundingClientRect().height,
+             mode:sheetMode, snap:snapPoints(), live:false};
     h.setPointerCapture(e.pointerId);
   });
-  h.addEventListener("pointerup", e=>{
+
+  h.addEventListener("pointermove", e=>{
     if(!start) return;
     const dy = e.clientY - start.y;
-    start = null;
-    if(Math.abs(dy) < 24) return;          /* simple appui : le clic s'en charge */
+    /* Quelques pixels de marge : un appui n'est jamais parfaitement immobile,
+       et passer en `dragging` dès le premier frémissement ferait sauter la
+       fiche sous un simple tap. */
+    if(!start.live){
+      if(Math.abs(dy) < 6) return;
+      start.live = true;
+      stageSheet.classList.add("dragging");
+    }
+    const s = start.snap;
+    const px = Math.min(s.full, Math.max(s.folded, start.h - dy));
+    sheetInner.style.height = px + "px";
+    /* Au-delà de sa hauteur naturelle, la fiche descend aussi vers le bas de
+       l'écran : les deux mouvements ensemble la mènent bord à bord. */
+    const span = s.full - s.normal;
+    const lift = span > 0 ? Math.min(1, Math.max(0, (px - s.normal) / span)) : 0;
+    stageSheet.style.setProperty("--lift", lift.toFixed(3));
+  });
+
+  h.addEventListener("pointerup", e=>{
+    if(!start) return;
+    const {y, mode, snap, live} = start;
+    const dy = e.clientY - y;
+    stop();
+    if(!live){ return; }                  /* simple appui : le clic s'en charge */
     swallow = true;
     /* Au doigt, le clic ne suit pas toujours : on ne garde pas le verrou. */
     setTimeout(()=>{ swallow = false; }, 400);
-    setFolded(dy > 0);
+    const px = parseFloat(sheetInner.style.height) || snap[mode];
+    /* Position la plus proche… sauf geste franc : un coup net vers le haut
+       ouvre en grand même s'il n'a pas parcouru la moitié du chemin. */
+    let next = MODES.reduce((best, m)=>
+      Math.abs(snap[m] - px) < Math.abs(snap[best] - px) ? m : best, "folded");
+    if(Math.abs(dy) > 56 && next === mode) next = stepMode(mode, dy > 0 ? -1 : 1);
+    setSheet(next);
+  });
+
+  /* Un geste interrompu (appel, retour système) laisserait la fiche à une
+     hauteur intermédiaire : on la remet où elle était partie. */
+  h.addEventListener("pointercancel", ()=>{
+    if(!start) return;
+    const mode = start.mode;
+    stop();
+    setSheet(mode);
   });
 });
 
@@ -1882,7 +2037,7 @@ mapRecenter.addEventListener("click", ()=>{
    même surface qui donne l'étape et qui donne la carte. */
 mapInfo.addEventListener("click", ()=>{
   if(!currentStage) return;
-  setFolded(!folded);
+  setSheet(sheetMode === "folded" ? "normal" : "folded");
 });
 
 addEventListener("keydown", e=>{
