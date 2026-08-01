@@ -125,6 +125,10 @@
   /* La carte est la vue principale. Fond sombre chaud plutôt que noir neutre :
      on garde la palette momiji, les oranges et les ors doivent y rester chez eux. */
   #mapView{
+    /* 0 = fiche posée au-dessus du HUD, 1 = fiche plein écran. Portée par la vue
+       et non par la fiche : le HUD doit s'effacer au même rythme qu'elle monte,
+       et il n'est pas dedans. */
+    --lift:0;
     position:fixed; inset:0; z-index:60;
     background:#0D0B09; color:#F4E9DA;
     overflow:hidden;
@@ -284,11 +288,12 @@
      Ouvrir un jour fait glisser vers la gauche — le sens du chevron — plutôt
      que de recouvrir l'écran : la carte reste visible et continue de suivre. */
   .stage-sheet{
+    --rise:calc(84px + env(safe-area-inset-bottom));
     position:absolute; left:0; right:0; z-index:5;
-    bottom:calc(84px + env(safe-area-inset-bottom));
+    bottom:var(--rise);
     padding:0 12px;
     transform:translateY(14px); opacity:0; pointer-events:none;
-    transition:opacity .3s ease, transform .3s ease;
+    transition:opacity .3s ease, transform .34s var(--spring);
   }
   .stage-sheet.show{transform:none; opacity:1; pointer-events:auto}
   .stage-sheet .inner{
@@ -303,6 +308,9 @@
     max-width:620px; margin:0 auto;
     transition:height .34s var(--spring);
   }
+  /* Pendant le glissement, la hauteur et la descente suivent le doigt : toute
+     transition les ferait traîner d'un tiers de seconde derrière lui. */
+  .stage-sheet.dragging,
   .stage-sheet.dragging .inner{transition:none}
   .grab{
     display:flex; justify-content:center; padding:7px 0 2px; cursor:grab;
@@ -329,6 +337,34 @@
   }
   .stage-sheet .head .fold{transition:transform .3s var(--spring)}
   .stage-sheet.folded .head .fold{transform:rotate(180deg)}
+
+  /* ---------- pied de page, plein écran seulement ---------- */
+  /* Les flèches du HUD servent la carte ; plein écran il n'y a plus de carte, et
+     les faire flotter par-dessus une fiche opaque les afficherait comme une
+     pièce rapportée. Elles reprennent donc leur rôle ici, nommées : « suivant »
+     veut dire quelque chose quand on lit le jeudi. Même règle qu'en bas de la
+     carte — la liste passe d'une étape à l'autre, un jour ouvert passe d'un
+     jour à l'autre, par-dessus les frontières d'étape. */
+  .stage-sheet .foot{display:none}
+  .foot button{
+    flex:1; min-width:0; display:flex; align-items:center; gap:9px;
+    font:inherit; text-align:left; cursor:pointer; color:inherit;
+    background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08);
+    border-radius:13px; padding:9px 12px;
+  }
+  .foot button:active{background:rgba(255,255,255,.10)}
+  .foot button:disabled{opacity:.26; cursor:default}
+  .foot button.next{flex-direction:row-reverse; text-align:right}
+  .foot .arrow{flex:none; font-size:14px; color:#A8927A}
+  .foot .t{flex:1; min-width:0}
+  .foot .k{
+    display:block; font-size:9.5px; font-weight:800; color:#7A6853;
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+  .foot .n{
+    display:block; font-size:12.5px; font-weight:700; margin-top:1px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .stage-sheet .scroll{max-height:32vh; overflow-y:auto; -webkit-overflow-scrolling:touch}
   .stage-sheet .d{
     display:flex; gap:10px; align-items:flex-start; width:100%;
@@ -413,6 +449,53 @@
 
   .map-nav button.ghost{display:none}
   .map-nav button.ghost.show{display:flex}
+
+  /* ---------- troisième position : plein écran (mobile seulement) ---------- */
+  /* Tirer l'en-tête vers le haut agrandit la fiche jusqu'à couvrir la carte : la
+     journée se lit alors comme une page, sans quitter l'étape ni perdre le fil.
+     Deux mouvements se combinent — `sizeSheet()` pose la hauteur de l'`.inner`,
+     et --lift fait descendre le conteneur des 84 px qui le séparaient du bas de
+     l'écran, pour que la fiche finisse bord à bord. En grand écran la fiche est
+     déjà sur le côté et ne masque rien : la position n'y existe pas. */
+  @media (max-width:759.98px){
+    .stage-sheet.show{transform:translateY(calc(var(--rise) * var(--lift)))}
+    /* Gouttière et arrondis se referment au même rythme que le reste : accrochés
+       à la classe, ils sauteraient d'un coup à la fin du geste. */
+    .stage-sheet{padding:0 calc(12px * (1 - var(--lift)))}
+    .stage-sheet .inner{border-radius:calc(17px * (1 - var(--lift)))}
+    .stage-sheet.full{z-index:12}
+    .stage-sheet.full .inner{
+      max-width:none; background:rgba(20,15,12,.985); box-shadow:none;
+    }
+    /* La fiche s'arrête sous la barre du haut plutôt que de la recouvrir : le
+       bouton Infos est ce qu'on veut justement sous la main en lisant un jour
+       (se déplacer, à table, repères), et l'y laisser évite de le reloger. La
+       barre perd son dégradé, qui n'a de sens que sur la carte. */
+    #mapView.sheet-open .map-top{
+      background:rgba(20,15,12,.985); z-index:13;
+      border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    /* Le HUD et la légende appartiennent à la carte : ils s'effacent à mesure
+       que la fiche la recouvre, plutôt que de se retrouver un instant côte à
+       côte avec le pied de la fiche, qui reprend leur rôle. */
+    .map-hud, .map-legend{opacity:calc(1 - var(--lift) * 2)}
+    /* La hauteur du volet ne peut plus venir de son contenu : l'`.inner` est
+       fixé à la hauteur de l'écran, c'est à la liste de prendre ce qui reste.
+       Pendant le geste aussi — sans quoi la fiche s'agrandirait autour d'une
+       liste restée à sa taille, et on tirerait vers le haut un grand vide qui
+       ne se remplit qu'au relâché. */
+    .stage-sheet.full .scroll,
+    .stage-sheet.dragging .scroll{max-height:none; height:var(--pane-h,auto)}
+    .stage-sheet.full .foot,
+    .stage-sheet.dragging .foot{
+      display:flex; gap:8px; padding:9px 12px;
+      padding-bottom:calc(9px + env(safe-area-inset-bottom));
+      border-top:1px solid rgba(255,255,255,.07);
+      /* Présent dès le début du geste pour que la place lui soit réservée,
+         mais il n'apparaît qu'à mesure qu'on approche du plein écran. */
+      opacity:calc(var(--lift) * 2 - 1);
+    }
+  }
 
   /* Écran large : la feuille passe sur le côté, la carte respire au centre. */
   @media (min-width:760px){
@@ -500,6 +583,19 @@
         </section>
 
       </div>
+
+      <!-- Navigation du plein écran : masquée tant que la carte est visible,
+           c'est le HUD qui s'en charge alors. -->
+      <nav class="foot" id="sheetFoot">
+        <button id="footPrev" type="button">
+          <span class="arrow">&#8592;</span>
+          <span class="t"><span class="k" id="footPrevKind"></span><span class="n" id="footPrevName"></span></span>
+        </button>
+        <button id="footNext" class="next" type="button">
+          <span class="arrow">&#8594;</span>
+          <span class="t"><span class="k" id="footNextKind"></span><span class="n" id="footNextName"></span></span>
+        </button>
+      </nav>
     </div>
   </div>
 
@@ -590,27 +686,34 @@ const STAGES = [
     lodging:"662 Kawakita, Yufuin-chō, Yufu (Ōita)", mapQuery:"662 Kawakita, Yufuin-chō, Yufu, Ōita, Japan",
     days:[
       {d:"Mar 17", date:"2026-11-17",
-        summary:"Départ tôt : shinkansen Tokyo → Hakata (~5h), récupération du minivan, route vers Yufuin (~2h). Arrivée fin d'après-midi : lac Kinrin, rue Yunotsubo (boutiques ferment tôt), vue mont Yufu. Soir onsen. <span class='tag top'>onsen</span>",
+        summary:"Départ tôt de Tokyo : shinkansen → Hakata (~5h), minivan récupéré à Hakata, route vers Yufuin (~2h). Arrivée fin d'après-midi : lac Kinrin, rue Yunotsubo (boutiques ferment ~17h30), vue sur le mont Yufu. Onsen privé au ryokan, soirée calme — c'est la veille de deux grosses journées. <span class='tag top'>onsen</span>",
         blocks:[
           {time:"Matin", icon:"🚄", place:"fukuoka", title:"Shinkansen Tokyo → Hakata", desc:"~5h, départ tôt le matin."},
-          {time:"Midi", icon:"🔑", title:"Récupération du minivan, route vers Yufuin", desc:"~2h de route."},
-          {time:"Fin d'après-midi", icon:"🚗", place:"yufuin", title:"Arrivée à Yufuin", desc:"Lac Kinrin, rue Yunotsubo (les boutiques ferment tôt), vue sur le mont Yufu."},
-          {time:"Soir", icon:"♨️", title:"Onsen", tag:"onsen", tagClass:"top"}
+          {time:"Midi", icon:"🔑", title:"Minivan récupéré à Hakata", desc:"Puis ~2h de route vers Yufuin."},
+          {time:"Fin d'après-midi", icon:"🚗", place:"yufuin", title:"Arrivée à Yufuin", desc:"Lac Kinrin, rue Yunotsubo (les boutiques ferment ~17h30), vue sur le mont Yufu."},
+          {time:"Soir", icon:"♨️", title:"Onsen privé au ryokan", desc:"Soirée calme : c'est la veille de deux grosses journées.", tag:"onsen", tagClass:"top"}
         ]},
       {d:"Mer 18", date:"2026-11-18",
-        summary:"Rando du Kujū depuis Makinoto-tōge (~40 min de route, Yamanami Hwy), 4-5h, froid possible. Kurokawa Onsen ensuite (+25 min) et rotenburo-hopping (tegata ~1 500 ¥). <span class='tag top'>rando</span>",
+        summary:"Boucle Yamanami : ~3h de route en tout, arrêts courts. Pont suspendu de Kokonoe au petit matin, prairies du caldera d'Aso à midi, Kurokawa en fin d'après-midi, retour au ryokan pour l'onsen. <span class='tag top'>panoramas</span>",
         blocks:[
-          {time:"Matin", icon:"🥾", place:"kuju", title:"Randonnée du Kujū", desc:"Départ Makinoto-tōge (~40 min de route, Yamanami Hwy), 4-5h, froid possible.", tag:"rando", tagClass:"top"},
-          {time:"Fin d'après-midi", icon:"♨️", place:"kurokawa", title:"Kurokawa Onsen", desc:"+25 min de route. Rotenburo-hopping avec le tegata (~1 500 ¥).", tag:"onsen", tagClass:"top"}
+          {time:"8h30", icon:"🌉", place:"otsurihashi", title:"Kokonoe Yume Ōtsurihashi", desc:"30 min de Yufuin. Plus haut pont piéton suspendu du Japon : 173 m au-dessus de la gorge, vue sur les chutes Shindō-no-taki et le massif du Kujū, pic des couleurs en novembre. 20 min A/R, 500 ¥, ouvert 8h30-17h (guichet jusqu'à 16h30). Ferme par grand vent — d'où le créneau du matin.", tag:"ferme par grand vent", tagClass:"warn"},
+          {time:"11h", icon:"🌋", place:"kusasenri", title:"Kusasenri, caldera d'Aso", desc:"~1h10 de route. Prairies du caldera, panorama. Déjeuner akaushi (bœuf rouge d'Aso). Cratère du Nakadake fermé en 2026, les points de vue restent ouverts."},
+          {time:"15h", icon:"♨️", place:"kurokawa", title:"Kurokawa Onsen", desc:"~50 min. Ruelles le long de la rivière, murs de cèdre, ashiyu gratuit, café. Pas de tegata : l'onsen est déjà au ryokan. Départ ~17h."},
+          {time:"18h", icon:"🏨", place:"yufuin", title:"Retour à Yufuin", desc:"Onsen, dîner au ryokan.", tag:"onsen", tagClass:"top"}
         ]},
       {d:"Jeu 19", date:"2026-11-19",
-        summary:"Retour Fukuoka. Plan A direct ~2h, plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé). Restitution du minivan.",
+        summary:"La grosse journée : ~4h55 de route, Yufuin → Itoshima → Kurume → Fukuoka. Torii marin de Futamigaura au soleil du matin, huîtres grillées en kaki-goya, côte d'Itoshima, puis Kōra Taisha à Kurume pour le coucher de soleil. Minivan rendu à Fukuoka ~18h35. <span class='tag warn'>marées</span>",
         blocks:[
-          {time:"Matin", icon:"🚗", place:"fukuoka", title:"Retour vers Fukuoka", desc:"Plan A direct ~2h. Plan B scénique via Aso/Kusasenri (~4h30-5h, cratère Nakadake fermé)."},
-          {time:"Après-midi", icon:"🔑", title:"Restitution du minivan"}
+          {time:"7h", icon:"🚗", title:"Départ de Yufuin", desc:"Petit-déjeuner tôt à demander au ryokan la veille."},
+          {time:"9h45", icon:"⛩️", place:"itoshima", title:"Sakurai Futamigaura (Itoshima)", desc:"Soleil dans le dos, torii marin éclairé de face, quasi désert avant 10h. Vérifier les marées : à marée basse on marche jusqu'au torii.", tag:"marées", tagClass:"warn"},
+          {time:"11h30", icon:"🦪", place:"itoshima", title:"Déjeuner en kaki-goya", desc:"Les cabanes à huîtres grillées de la côte, saison nov→mars. On grille soi-même : parfait à 5.", tag:"food", tagClass:"top"},
+          {time:"Début d'après-midi", icon:"🌊", place:"itoshima", title:"Côte d'Itoshima", desc:"Cafés en bord de mer, Palm Beach. Départ ~14h."},
+          {time:"15h30", icon:"⛩️", place:"kora", title:"Kōra Taisha (Kurume)", desc:"Parking gratuit près du sommet : pas besoin de monter les 131 marches. Honden Edo à toit de chaume, plafond sculpté, momiji."},
+          {time:"17h15", icon:"🌇", place:"kora", title:"Coucher de soleil sur la terrasse", desc:"Accès libre, vue Kurume → Tosu. Les lanternes du Kentōsai sont un festival d'août, pas de novembre."},
+          {time:"18h35", icon:"🔑", place:"fukuoka", title:"Fukuoka, restitution du minivan", desc:"Vérifier l'heure de fermeture de l'agence le jeudi soir.", tag:"à confirmer", tagClass:"warn"}
         ]}
     ],
-    next:{icon:"🚗",text:"Boucle minivan retour → Fukuoka",cls:""}
+    next:{icon:"🚗",text:"Yufuin → Itoshima → Kurume → Fukuoka · ~4h55 de route",cls:""}
   },
   {
     id:"fukuoka", name:"Fukuoka", emoji:"🍜", color:"var(--icho)", cssColor:"#D3A63C",
@@ -618,22 +721,25 @@ const STAGES = [
     lodging:"Nishinakasu 1, Chūō-ku, à deux pas des yatai", mapQuery:"Nishinakasu 1, Chūō-ku, Fukuoka",
     days:[
       {d:"Jeu 19", date:"2026-11-19",
-        summary:"Après-midi Tenjin / parc Ōhori, soir yatai de Nakasu (à pied du logement). <span class='tag top'>food</span>",
+        summary:"Arrivée en fin de journée après la boucle Itoshima / Kurume, minivan rendu ~18h35. Soir : yatai de Nakasu, à pied du logement. <span class='tag top'>food</span>",
         blocks:[
-          {time:"Après-midi", icon:"🌳", title:"Tenjin, parc Ōhori"},
-          {time:"Soir", icon:"🏮", title:"Yatai de Nakasu", desc:"À pied du logement.", tag:"food", tagClass:"top"}
+          {time:"18h35", icon:"🔑", title:"Restitution du minivan", desc:"Fin de la boucle Yufuin → Itoshima → Kurume. Trois jours de location, même agence qu'au départ."},
+          {time:"Soir", icon:"🏮", title:"Yatai de Nakasu", desc:"À pied du logement. Ouverture vers 18h, espèces.", tag:"food", tagClass:"top"}
         ]},
       {d:"Ven 20", date:"2026-11-20",
-        summary:"Dazaifu Tenmangū (~35 min, beau en automne), ramen de Hakata, motsunabe, mentaiko.",
+        summary:"Dazaifu en train : Nishitetsu depuis Tenjin (~30 min, correspondance Futsukaichi). Tenmangū, Komyōzen-ji, Musée national de Kyushu. Retour en fin d'après-midi. Soir : ramen de Hakata, motsunabe, mentaiko.",
         blocks:[
-          {time:"Matin", icon:"⛩️", place:"dazaifu", title:"Dazaifu Tenmangū", desc:"~35 min, beau en automne."},
+          {time:"Matin", icon:"🚃", place:"dazaifu", title:"Nishitetsu Tenjin → Dazaifu", desc:"~30 min, correspondance à Futsukaichi. Zéro voiture aujourd'hui."},
+          {time:"Matin", icon:"⛩️", place:"dazaifu", title:"Dazaifu Tenmangū", desc:"Beau en automne, et les étudiants viennent y prier avant les examens."},
+          {time:"Midi", icon:"🍁", place:"dazaifu", title:"Komyōzen-ji", desc:"Érables sur tapis de mousse, pic mi-fin novembre. La visite intérieure est suspendue depuis plusieurs années — à revérifier avant d'y compter.", tag:"à revérifier", tagClass:"warn"},
+          {time:"Après-midi", icon:"🏛️", place:"dazaifu", title:"Musée national de Kyushu", desc:"10 min à pied du Tenmangū. Retour à Fukuoka en fin d'après-midi."},
           {time:"Soir", icon:"🍜", title:"Ramen de Hakata, motsunabe, mentaiko"}
         ]},
       {d:"Sam 21", date:"2026-11-21",
-        summary:"Matin libre, ferry pour Busan en début d'après-midi (terminal à ~10 min).",
+        summary:"Matin : parc Ōhori et ruines du château de Fukuoka, en métro, bouclé en 2h avec les bagages. 12h30 : ferry Camellia Line pour Busan.",
         blocks:[
-          {time:"Matin", icon:"🛍️", title:"Matin libre"},
-          {time:"12h30", icon:"⛴️", place:"busan", title:"Ferry pour Busan", desc:"Terminal à ~10 min du logement."}
+          {time:"Matin", icon:"🌳", title:"Parc Ōhori, ruines du château de Fukuoka", desc:"En métro, bouclé en 2h avec les bagages."},
+          {time:"12h30", icon:"⛴️", place:"busan", title:"Ferry Camellia Line pour Busan", desc:"Terminal à ~10 min du logement, embarquement ~1h avant."}
         ]}
     ],
     next:{icon:"⛴️",text:"Ferry Hakata → Busan · départ ~12h30, arrivée ~18h30",cls:"ferry"}
@@ -777,7 +883,9 @@ const TODOS = [
   {t:"PokéPark Kanto, 5 billets, même créneau (lun 16/11)", d:"Loterie ~3 mois avant sur ticket-en.pokepark-kanto.co.jp, remise en vente ~2 mois avant. Ça part très vite.", dl:"⏰ loterie ≈ mi-août 2026", hot:true},
   {t:"Musée Ghibli, billets pour 5 (sam 14/11 matin)", d:"Un des potes de voyage s'en occupe. Vente le 10 du mois précédent à 10h JST (~3h du matin en France), sur le site officiel.", dl:"⏰ vente le 10 octobre 2026, 10h JST", hot:true},
   {t:"Ferry Hakata ⇄ Busan (Camellia Line)", d:"Aller sam 21/11 (jour), retour lun 23/11 (nuit). Economy Bargain, moins cher mais non remboursable : à vérifier avant de payer.", dl:"Dès l'ouverture des ventes", hot:true},
-  {t:"Minivan 7-8 places à Fukuoka (17–19/11)", d:"Toyota Noah/Voxy ou Nissan Serena, boucle A/R Fukuoka. Demander la carte ETC pour les péages.", dl:null, hot:false},
+  {t:"Minivan 7-8 places à Hakata (17–19/11, 3 jours)", d:"Toyota Noah/Voxy ou Nissan Serena, boucle A/R Hakata. Carte ETC pour les péages. ⚠️ Vérifier l'heure de fermeture de l'agence le jeudi soir (souvent 19h ou 20h) : la restitution est prévue ~18h35.", dl:null, hot:false},
+  {t:"Marées à Sakurai Futamigaura pour le jeu 19/11", d:"Le torii marin se marche à marée basse et se photographie à marée haute. Table des marées d'Itoshima à consulter ~1 semaine avant pour caler l'arrêt de 9h45.", dl:"~1 semaine avant", hot:false},
+  {t:"Komyōzen-ji (Dazaifu) : visite intérieure ouverte ?", d:"Le jardin d'érables sur mousse est fermé au public depuis plusieurs années (travaux puis suspension). À revérifier avant le 20/11, sinon la journée reste Tenmangū + Musée national de Kyushu.", dl:"Avant le départ", hot:false},
   {t:"Traductions JAF des permis français", d:"Obligatoire pour conduire au Japon (l'IDP ne suffit pas pour la France). Un par conducteur.", dl:"Avant le départ", hot:false},
   {t:"Universal Studios Japan (lun 30/11)", d:"Billets datés + Express Pass conseillé en haute saison.", dl:null, hot:false},
   {t:"Sièges shinkansen ×5", d:"Tokyo→Hakata · Hakata→Hiroshima · Hiroshima→Okayama · Okayama→Himeji→Osaka · Osaka→Tokyo. Réserver ensemble.", dl:null, hot:false},
@@ -814,9 +922,10 @@ const PRACTICAL = {
   ],
   yufuin:[
     {icon:"🚗", title:"Se déplacer", items:[
-      "Minivan pris à Fukuoka : conduite à gauche, carte ETC pour les péages.",
-      "Kujū par la Yamanami Highway (~40 min) : route de montagne, brume fréquente le matin.",
-      "Plein d'essence avant de monter, les stations se raréfient en altitude."
+      "Minivan pris à Hakata pour 3 jours (17→19) : conduite à gauche, carte ETC pour les péages.",
+      "Yamanami Highway : route de montagne, brume fréquente le matin, doubler les temps annoncés si ça bouchonne à Aso.",
+      "Plein d'essence avant de monter, les stations se raréfient en altitude.",
+      "Zéro nuit de parking en centre-ville : le van est rendu le 19 au soir, vendredi et samedi sont en transports."
     ]},
     {icon:"🍽️", title:"À table", items:[
       "Bœuf de Bungo, poulet karaage de Nakatsu, truite de rivière.",
@@ -824,14 +933,15 @@ const PRACTICAL = {
       "La rue Yunotsubo ferme vers 17h-17h30, y compris les boutiques de bouche."
     ]},
     {icon:"♨️", title:"Onsen", items:[
-      "Tegata de Kurokawa : trois bains extérieurs au choix parmi les ryokan du village.",
+      "Les bains sont au ryokan (dont un privatisé) : pas besoin du tegata à Kurokawa, on y va pour le village.",
       "Tatouages parfois refusés → viser un kashikiri (bain privatisé), à réserver.",
       "Se rincer avant, serviette hors de l'eau, cheveux attachés."
     ]},
     {icon:"💡", title:"Astuces", items:[
       "Lac Kinrin au lever du jour : brumes par matin froid, ça vaut le réveil.",
+      "Le pont de Kokonoe ferme par grand vent : d'où le créneau de 8h30, avant que ça se lève.",
       "Le cratère du Nakadake (Aso) est fermé en 2026 ; prairies et points de vue restent ouverts.",
-      "Neige précoce possible au sommet du Kujū : couches + coupe-vent."
+      "Petit-déj à 6h30 le 19 : à demander au ryokan la veille, sinon départ décalé d'une heure."
     ]}
   ],
   fukuoka:[
@@ -843,7 +953,8 @@ const PRACTICAL = {
     {icon:"🍽️", title:"À table", items:[
       "Yatai le long de la Naka : ouverture vers 18h, pas de réservation, à 5 on se scinde souvent.",
       "Ramen tonkotsu de Hakata : demander kaedama pour une deuxième portion de nouilles.",
-      "Motsunabe, mentaiko, gyōza croustillants — et le marché de Yanagibashi le matin."
+      "Motsunabe, mentaiko, gyōza croustillants — et le marché de Yanagibashi le matin.",
+      "Kaki-goya d'Itoshima (le 19) : cabanes à huîtres, on grille soi-même, espèces et vêtements qui vont sentir la fumée."
     ]},
     {icon:"🏛️", title:"Repères", items:[
       "Dazaifu fut le siège du gouvernement de Kyushu pendant des siècles.",
@@ -1001,7 +1112,7 @@ const INFOS = [
    Villes et côtes passent par la même projection Mercator : un point est donc
    juste par construction, pas parce qu'on l'a déplacé à l'œil. */
 /* MAP:BEGIN — bloc généré, remplacé par tools/build_map.py */
-const MAP = {"width": 1000.0, "height": 945.4, "zoomWidth": 156.0, "paths": {"japan": ["M759.6 294.8L761.6 296.1L770.8 292.7L769.1 302.9L768.1 313.1L768.7 330.0L769.6 337.6L771.2 344.9L775.1 350.1L780.3 353.9L787.8 365.8L791.8 380.3L794.6 387.3L796.7 394.7L797.4 398.1L797.4 401.5L796.8 406.1L797.5 409.8L796.7 421.5L793.3 435.0L792.9 441.8L790.0 443.2L788.2 446.4L786.7 447.8L785.1 449.0L782.6 449.3L780.9 450.6L780.2 454.2L779.1 457.6L777.0 460.7L775.3 464.1L774.0 472.4L773.5 480.9L771.4 486.8L766.5 488.4L760.8 488.3L753.6 491.0L752.1 492.6L746.3 503.0L744.7 509.0L744.6 515.5L746.2 523.5L748.4 531.3L750.0 545.8L748.3 567.8L746.7 574.8L743.0 579.5L740.3 581.7L737.9 584.4L734.8 591.5L729.7 605.7L729.3 609.2L729.3 612.9L728.0 617.7L727.1 622.4L727.9 627.9L729.5 633.0L736.3 646.1L739.0 649.9L742.0 653.4L730.3 657.3L728.2 659.1L721.3 666.5L719.1 673.6L719.3 681.3L718.1 684.1L716.2 686.5L714.2 688.1L706.5 691.7L701.5 695.2L696.6 700.7L694.7 703.6L690.9 702.7L688.6 700.2L690.8 696.9L690.2 693.2L691.2 683.5L690.0 679.5L694.0 676.6L695.8 671.9L700.0 668.1L702.9 664.7L703.4 662.0L700.8 659.0L698.0 656.9L694.1 656.9L690.4 657.5L688.0 660.3L687.2 664.1L687.4 665.9L687.1 667.5L681.2 672.7L682.0 678.2L683.7 680.9L685.9 682.2L685.3 684.1L682.5 688.5L680.5 688.9L677.0 682.8L672.5 679.4L667.0 679.5L661.4 680.7L657.1 684.8L655.6 688.2L654.7 691.7L655.0 700.2L653.3 707.3L649.8 713.5L648.1 715.8L643.9 720.0L640.9 720.6L638.8 718.6L637.1 715.7L639.3 705.1L639.2 699.1L644.2 696.0L640.1 691.7L635.1 690.0L628.0 692.3L626.0 694.9L624.7 698.3L620.9 702.7L616.7 706.8L611.9 713.7L608.8 721.9L598.3 719.2L592.7 718.6L586.9 718.9L576.7 717.8L565.6 719.5L552.8 722.7L553.6 720.4L564.1 715.5L564.4 714.0L563.4 711.3L560.8 711.2L554.6 712.1L551.4 711.7L550.1 708.8L548.0 707.5L546.5 708.7L547.0 714.4L545.5 715.1L543.4 713.7L544.0 709.3L542.6 702.8L542.5 698.8L544.7 695.4L542.4 693.9L540.1 694.5L537.0 696.2L534.4 698.5L528.8 710.3L526.6 717.0L530.7 722.4L541.9 729.9L543.8 731.7L543.9 734.9L542.5 738.3L539.5 739.8L527.2 742.3L516.5 747.2L513.4 752.1L503.8 771.0L496.0 783.9L485.0 788.4L473.0 784.4L470.1 779.9L467.8 774.4L463.3 769.3L459.2 763.8L456.9 757.3L457.3 746.8L455.5 740.5L457.1 738.8L463.7 734.9L465.9 732.7L469.6 727.7L471.0 724.9L471.2 720.7L468.2 718.4L460.4 718.5L452.6 719.8L447.1 718.0L439.9 712.8L437.7 711.7L429.9 711.4L424.4 712.4L418.9 714.3L413.2 714.8L411.3 715.8L404.6 722.1L399.4 726.1L394.8 728.1L385.0 728.6L380.0 729.9L374.9 731.9L373.4 731.8L368.0 734.6L361.7 737.1L358.4 739.6L352.3 738.0L340.1 742.5L334.3 743.0L328.2 740.5L322.6 736.6L317.2 738.3L313.5 744.1L311.7 755.8L309.6 761.1L309.0 767.4L306.2 766.4L290.0 755.0L288.8 754.6L275.7 756.6L272.3 757.5L268.1 759.8L263.6 760.9L259.6 759.2L255.7 756.5L251.9 757.3L248.1 759.2L246.6 742.1L247.3 739.8L249.7 736.8L252.3 734.2L258.7 733.3L265.1 734.1L269.7 733.0L273.6 729.6L277.6 724.7L282.3 720.8L288.5 717.7L294.6 714.1L299.9 709.1L304.9 703.6L309.6 699.6L314.6 696.2L322.3 688.1L332.4 678.9L336.3 672.1L338.7 670.3L347.5 666.5L359.1 663.6L364.6 663.7L370.0 669.7L372.9 668.9L375.9 667.3L381.9 666.5L388.0 667.5L394.0 667.5L400.0 666.7L411.6 664.8L417.6 662.4L423.6 659.4L444.7 657.2L459.2 652.1L461.5 652.5L463.7 653.6L463.9 657.4L462.1 661.6L463.8 664.1L466.8 665.6L480.4 666.1L484.3 667.0L490.0 664.2L495.4 660.7L501.0 656.0L504.9 650.8L501.3 644.3L500.5 637.2L503.5 629.4L507.9 622.9L513.1 618.9L518.0 614.4L527.7 601.4L534.8 590.9L537.3 577.9L535.8 562.5L542.0 551.1L547.9 549.1L559.6 543.9L565.8 542.3L566.7 544.6L566.5 547.6L557.3 557.3L552.0 561.2L548.9 562.4L546.0 564.2L544.8 567.6L549.5 573.2L550.7 577.4L550.4 581.4L550.6 585.0L555.9 588.9L562.0 590.2L564.5 590.2L566.8 589.1L573.7 579.6L575.3 577.9L595.1 570.9L604.8 565.5L610.2 564.1L615.3 561.3L626.6 550.5L630.8 545.5L634.6 539.9L637.6 533.5L640.0 526.5L643.3 522.2L661.3 511.8L667.0 506.1L668.9 503.4L671.1 495.4L672.7 487.1L674.8 480.6L677.8 474.5L681.7 468.3L686.2 462.5L688.8 456.5L692.6 442.2L694.3 434.3L695.6 431.5L697.5 429.1L699.1 426.0L700.4 422.6L701.0 419.3L701.8 408.9L701.3 400.9L698.3 394.0L695.9 392.1L693.2 392.0L689.2 392.6L685.8 389.8L686.5 387.3L690.0 386.9L692.3 385.6L694.0 383.2L697.2 375.8L699.2 367.8L699.3 364.2L696.8 357.7L694.8 349.9L694.8 345.7L697.0 340.9L700.1 336.9L702.8 336.0L705.9 335.7L708.6 334.2L711.1 332.0L712.6 329.5L714.8 322.8L715.7 319.0L714.2 308.8L715.7 306.0L717.8 304.3L720.5 305.6L723.3 305.9L726.6 305.5L729.7 306.5L730.3 309.2L732.3 326.4L733.5 328.7L735.8 330.5L738.3 330.3L740.6 327.6L742.1 324.0L745.0 323.3L754.1 327.1L757.3 324.4L759.4 320.2L761.2 312.7L760.3 305.9L758.2 303.4L755.9 303.8L753.9 305.7L751.7 306.7L738.3 310.3L738.4 302.7L741.3 291.3L742.8 287.8L745.1 286.0L750.7 288.0L753.5 289.3L759.6 294.8Z", "M888.3 109.4L894.6 109.7L897.3 109.4L902.1 110.5L921.0 120.9L926.7 122.3L932.5 122.4L936.7 121.6L940.3 118.7L951.7 106.0L963.7 94.4L965.0 94.8L965.0 98.0L964.1 101.6L958.8 112.2L952.9 126.5L951.7 133.7L953.6 140.7L957.3 146.5L960.2 154.3L963.6 165.3L968.3 166.7L970.9 166.8L975.6 163.6L980.1 159.4L983.9 158.9L988.0 159.6L982.7 162.5L977.6 166.1L973.3 172.8L971.7 174.0L966.8 173.6L963.9 173.9L958.1 176.7L953.0 179.8L948.1 183.7L942.8 185.8L937.1 186.3L928.4 189.5L922.7 189.7L912.0 186.9L906.8 187.7L895.5 193.9L885.3 202.9L876.3 213.0L868.8 225.1L865.7 231.4L863.9 238.4L863.7 243.1L863.0 247.5L861.3 250.6L859.2 253.1L853.0 251.7L842.8 245.3L823.0 235.9L802.2 221.6L790.5 214.3L768.4 216.5L747.5 230.3L745.7 229.1L737.7 219.7L733.8 215.9L729.2 214.8L725.8 215.0L722.4 215.7L717.7 220.5L716.0 224.0L714.7 228.0L714.2 230.8L714.8 233.5L719.3 239.7L724.8 244.4L727.3 245.2L732.6 244.9L735.0 245.4L743.9 254.6L753.6 263.3L755.7 266.2L752.1 269.2L748.2 270.7L743.6 270.3L739.1 269.1L731.3 265.5L728.0 268.6L722.9 275.0L720.0 281.9L717.7 285.1L712.0 289.3L706.0 291.5L702.8 290.8L700.4 288.1L699.1 285.0L698.4 281.3L699.7 273.4L702.8 266.3L704.0 259.0L701.4 248.7L699.8 246.5L693.4 240.5L690.4 234.6L689.7 227.2L690.1 223.1L691.7 214.1L693.2 209.6L696.2 208.1L699.4 207.2L704.3 203.9L709.7 199.7L714.9 194.9L720.1 189.0L722.7 182.5L718.3 174.5L717.4 169.8L718.1 165.3L722.8 162.9L727.6 164.7L737.3 171.3L739.2 171.9L745.9 172.2L755.1 173.6L760.4 173.3L762.9 172.3L766.8 166.9L768.7 159.9L768.0 151.0L768.0 142.0L770.4 134.8L778.0 123.1L780.2 116.1L781.0 99.2L783.8 91.8L786.0 84.1L787.0 67.8L783.9 52.0L780.8 44.3L777.1 37.0L777.7 29.9L780.6 23.4L780.7 21.4L781.4 19.7L786.8 18.4L789.4 17.0L791.8 13.9L794.7 12.0L796.9 13.8L798.6 17.1L806.3 25.0L818.5 39.1L832.8 60.6L841.7 71.0L851.2 80.4L861.8 90.0L872.8 98.3L879.9 102.2L885.1 108.4L888.3 109.4Z", "M260.8 781.5L267.4 783.3L270.3 783.4L272.9 782.6L276.8 780.2L281.0 778.5L284.0 779.4L286.6 781.5L288.0 784.4L287.4 787.4L282.6 794.0L278.8 801.0L287.7 802.3L296.6 802.2L294.5 806.5L294.2 810.3L296.9 812.0L299.2 814.5L298.6 816.6L297.3 818.8L302.1 822.0L301.8 824.2L300.6 826.5L288.4 841.3L284.9 848.8L282.4 857.0L280.1 863.0L278.4 869.2L277.2 876.0L274.9 882.9L275.7 889.0L274.9 895.3L268.8 910.8L264.5 910.5L259.0 908.6L255.6 908.9L253.8 912.4L257.0 919.4L247.2 927.8L236.5 933.4L236.4 930.8L237.4 928.8L239.0 927.2L240.1 925.2L241.7 918.7L240.9 912.0L237.7 903.7L237.4 900.7L239.7 899.5L241.2 899.2L242.0 898.0L242.0 895.3L241.0 893.2L237.9 892.6L235.0 892.5L232.9 895.6L230.1 901.6L228.7 907.6L229.3 910.9L230.6 913.8L234.5 918.8L233.3 921.7L231.7 923.9L217.9 918.8L214.9 918.4L212.4 917.3L209.8 910.6L215.4 908.9L217.1 908.1L217.7 906.0L218.5 899.3L215.8 893.8L213.6 891.8L211.8 889.6L213.0 884.9L212.2 879.0L212.1 870.8L213.1 869.3L218.3 867.7L222.1 863.2L225.4 858.2L230.3 849.3L234.3 839.7L230.4 839.3L227.2 837.5L230.7 832.9L229.6 827.2L224.3 820.1L221.4 811.8L216.7 808.1L214.3 806.7L211.3 808.7L208.8 811.0L211.1 816.5L210.8 821.3L211.2 826.0L213.5 826.3L216.4 825.1L218.7 826.0L220.0 828.5L220.4 831.7L219.4 834.9L217.3 836.4L214.7 836.3L212.1 834.6L210.0 832.1L205.2 830.8L200.0 833.7L195.2 839.6L191.0 842.6L193.0 838.2L193.9 833.5L191.9 830.1L187.1 824.6L186.0 821.4L185.7 817.5L186.6 813.7L191.5 818.1L194.0 823.6L197.6 826.0L202.1 826.0L198.6 818.0L197.4 815.9L192.5 812.3L185.9 806.2L181.7 803.2L183.1 796.9L185.6 795.6L187.7 795.9L194.8 798.2L195.4 795.0L194.4 793.3L193.8 791.3L198.5 788.6L206.1 786.3L207.6 785.2L209.0 782.9L210.8 781.7L216.1 781.8L220.6 779.6L224.3 773.6L225.2 770.4L226.5 767.6L235.7 762.8L238.0 762.1L244.1 762.7L249.8 765.4L252.5 771.1L255.0 777.3L260.8 781.5Z", "M418.7 742.4L425.5 744.9L432.6 744.2L432.5 755.1L433.4 758.8L435.4 762.1L434.4 766.8L437.6 768.5L428.2 773.9L419.6 781.1L416.1 786.0L413.0 791.2L411.1 796.7L409.9 802.6L407.1 800.3L398.9 790.7L393.7 788.0L385.3 786.6L382.7 786.9L365.5 795.9L363.2 802.5L358.5 812.3L356.3 815.6L353.9 816.5L352.1 818.2L350.2 826.6L344.9 831.7L341.6 831.9L336.1 830.5L333.6 831.3L336.9 823.0L331.6 822.0L326.3 822.2L326.1 816.8L322.9 813.7L325.3 809.8L325.4 806.5L326.8 804.7L327.3 802.1L327.1 799.9L323.8 799.2L321.8 797.6L322.2 791.7L320.3 791.5L315.7 792.5L306.0 797.1L303.3 797.1L307.4 793.9L316.0 789.4L319.9 786.8L328.3 779.7L333.6 776.3L336.4 770.2L337.2 766.6L339.0 763.4L340.6 758.2L343.4 756.5L348.1 752.0L350.8 752.5L353.9 757.9L358.0 762.1L360.9 761.7L366.1 759.6L368.7 759.1L374.7 759.4L380.2 756.7L382.4 753.6L383.2 749.7L381.2 743.1L383.8 743.8L386.4 743.5L392.3 739.4L398.4 736.9L404.7 736.3L411.8 738.6L418.7 742.4Z", "M616.5 523.5L611.7 523.7L610.6 523.1L613.4 521.5L613.7 518.9L615.4 514.3L615.3 512.9L611.6 512.7L611.8 507.4L614.6 502.2L622.3 494.0L624.4 492.4L624.7 496.0L622.3 504.5L621.9 507.6L627.9 508.2L624.0 518.4L616.5 523.5Z", "M206.6 862.6L202.7 864.7L202.2 862.7L200.5 861.8L203.3 859.0L203.2 857.7L201.5 855.8L203.5 848.6L203.0 845.5L210.8 844.3L212.2 847.2L212.4 856.1L206.6 862.6Z", "M447.2 740.5L441.8 745.6L437.2 745.2L434.8 742.9L434.1 740.1L438.5 735.7L442.3 729.4L445.8 726.6L448.6 725.0L450.8 725.1L445.9 733.9L447.2 740.5Z"], "korea": ["M35.5 526.1L37.0 524.9L37.1 523.2L37.1 517.6L41.5 513.7L47.6 505.7L50.7 501.3L54.1 497.2L58.1 494.4L62.1 493.1L68.2 492.6L80.1 493.1L82.4 492.6L90.6 492.2L92.6 492.9L98.6 493.4L105.2 492.9L108.5 491.7L111.6 489.7L114.3 486.0L117.1 479.3L120.1 473.9L121.8 472.9L134.0 501.2L145.6 519.5L155.4 532.6L169.5 557.8L173.6 571.2L174.0 579.5L176.4 590.9L174.4 597.4L175.0 607.7L174.1 612.9L172.3 616.8L172.3 624.2L172.8 628.2L172.9 633.4L174.0 635.5L175.6 636.2L178.2 634.3L181.3 633.5L180.7 639.8L177.0 655.7L173.7 667.3L169.2 677.4L163.5 686.5L156.7 690.1L151.9 691.4L142.7 691.9L135.1 690.3L128.6 691.4L126.0 693.3L124.0 696.6L125.5 701.7L125.3 705.4L122.5 705.1L117.0 702.9L110.8 702.6L107.9 701.6L105.1 696.2L102.1 696.4L97.0 699.6L89.1 700.3L86.3 702.0L85.4 704.2L86.5 707.0L90.5 710.7L89.1 714.4L85.0 716.3L81.7 711.7L79.6 707.2L77.3 707.0L73.7 708.2L73.0 713.1L74.7 716.4L77.4 720.2L73.6 724.6L72.5 727.7L69.8 729.9L62.3 725.0L63.3 721.4L66.6 718.0L67.0 714.5L65.9 712.4L55.2 721.3L48.6 731.4L45.0 730.7L43.6 728.1L41.5 727.0L34.3 733.5L33.0 738.7L30.4 738.9L29.3 736.7L29.2 732.0L27.9 728.1L20.5 722.3L17.2 717.3L19.0 714.5L25.1 716.0L30.1 715.8L29.1 713.4L27.5 712.3L30.8 710.9L33.5 708.2L31.2 707.4L27.8 709.0L24.9 708.2L23.8 701.6L20.3 694.8L18.5 688.2L21.9 684.4L23.7 678.5L26.9 669.9L28.5 667.1L32.9 665.1L34.5 662.8L32.1 661.7L28.2 660.7L28.3 658.2L30.9 656.8L33.9 654.1L39.6 650.8L41.4 644.4L39.7 642.9L36.2 641.4L37.0 638.2L38.4 635.7L37.9 634.3L33.7 630.2L30.8 626.4L31.7 622.1L31.0 615.6L31.4 610.2L31.2 607.2L29.2 600.6L28.2 593.9L25.5 594.8L23.3 596.5L15.5 594.1L13.0 594.0L12.0 589.0L14.8 582.9L21.5 577.5L25.3 576.8L28.2 574.4L32.7 573.7L38.1 577.3L43.0 578.1L45.6 584.4L47.3 585.8L47.6 583.4L51.6 580.7L52.5 578.6L51.7 577.5L47.1 576.4L43.1 568.5L42.5 565.0L41.1 562.8L43.3 556.5L38.6 549.3L36.3 547.0L36.6 540.5L34.2 536.4L32.8 534.1L32.0 530.2L32.7 528.4L34.8 527.7L35.5 526.1Z", "M20.3 804.0L18.0 805.3L16.0 804.5L15.4 803.9L12.9 800.5L12.3 798.8L13.9 795.4L20.8 789.9L38.5 784.6L41.7 784.4L48.7 786.7L50.2 790.9L49.0 794.6L47.3 797.0L39.2 801.1L32.9 803.1L20.3 804.0Z"]}, "cities": [{"id": "tokyo", "label": "Tokyo", "x": 687.1, "y": 656.1, "stage": "tokyo1"}, {"id": "yufuin", "label": "Yufuin", "x": 270.0, "y": 801.6, "stage": "yufuin"}, {"id": "fukuoka", "label": "Fukuoka", "x": 222.4, "y": 782.2, "stage": "fukuoka"}, {"id": "busan", "label": "Busan", "x": 156.6, "y": 686.7, "stage": "busan"}, {"id": "hiroshima", "label": "Hiroshima", "x": 324.3, "y": 734.6, "stage": "hiroshima"}, {"id": "okayama", "label": "Okayama", "x": 396.9, "y": 718.4, "stage": "okayama"}, {"id": "osaka", "label": "Osaka", "x": 475.5, "y": 716.1, "stage": "osaka"}, {"id": "haneda", "label": "Haneda", "x": 687.7, "y": 664.2, "stage": "tokyo2"}], "landmarks": [{"id": "kamakura", "label": "Kamakura", "x": 676.1, "y": 678.2, "stage": "tokyo1"}, {"id": "mitaka", "label": "Mitaka", "x": 676.8, "y": 655.2, "stage": "tokyo1"}, {"id": "yomiuriland", "label": "PokéPark", "x": 674.6, "y": 659.4, "stage": "tokyo1"}, {"id": "kuju", "label": "Kujū", "x": 264.5, "y": 812.3, "stage": "yufuin"}, {"id": "kurokawa", "label": "Kurokawa", "x": 253.6, "y": 812.5, "stage": "yufuin"}, {"id": "aso", "label": "Aso", "x": 256.2, "y": 824.1, "stage": "yufuin"}, {"id": "dazaifu", "label": "Dazaifu", "x": 229.0, "y": 786.7, "stage": "fukuoka"}, {"id": "gamcheon", "label": "Gamcheon", "x": 153.4, "y": 691.6, "stage": "busan"}, {"id": "yonggungsa", "label": "Yonggungsa", "x": 164.0, "y": 686.1, "stage": "busan"}, {"id": "taejongdae", "label": "Taejongdae", "x": 157.2, "y": 694.4, "stage": "busan"}, {"id": "miyajima", "label": "Miyajima", "x": 317.6, "y": 740.0, "stage": "hiroshima"}, {"id": "kurashiki", "label": "Kurashiki", "x": 389.6, "y": 722.6, "stage": "okayama"}, {"id": "himeji", "label": "Himeji", "x": 434.9, "y": 708.7, "stage": "osaka"}, {"id": "kyoto", "label": "Kyoto", "x": 488.7, "y": 696.8, "stage": "osaka"}, {"id": "nara", "label": "Nara", "x": 490.5, "y": 716.6, "stage": "osaka"}, {"id": "usj", "label": "USJ", "x": 472.0, "y": 717.8, "stage": "osaka"}]};
+const MAP = {"width": 1000.0, "height": 945.4, "zoomWidth": 156.0, "paths": {"japan": ["M759.6 294.8L761.6 296.1L770.8 292.7L769.1 302.9L768.1 313.1L768.7 330.0L769.6 337.6L771.2 344.9L775.1 350.1L780.3 353.9L787.8 365.8L791.8 380.3L794.6 387.3L796.7 394.7L797.4 398.1L797.4 401.5L796.8 406.1L797.5 409.8L796.7 421.5L793.3 435.0L792.9 441.8L790.0 443.2L788.2 446.4L786.7 447.8L785.1 449.0L782.6 449.3L780.9 450.6L780.2 454.2L779.1 457.6L777.0 460.7L775.3 464.1L774.0 472.4L773.5 480.9L771.4 486.8L766.5 488.4L760.8 488.3L753.6 491.0L752.1 492.6L746.3 503.0L744.7 509.0L744.6 515.5L746.2 523.5L748.4 531.3L750.0 545.8L748.3 567.8L746.7 574.8L743.0 579.5L740.3 581.7L737.9 584.4L734.8 591.5L729.7 605.7L729.3 609.2L729.3 612.9L728.0 617.7L727.1 622.4L727.9 627.9L729.5 633.0L736.3 646.1L739.0 649.9L742.0 653.4L730.3 657.3L728.2 659.1L721.3 666.5L719.1 673.6L719.3 681.3L718.1 684.1L716.2 686.5L714.2 688.1L706.5 691.7L701.5 695.2L696.6 700.7L694.7 703.6L690.9 702.7L688.6 700.2L690.8 696.9L690.2 693.2L691.2 683.5L690.0 679.5L694.0 676.6L695.8 671.9L700.0 668.1L702.9 664.7L703.4 662.0L700.8 659.0L698.0 656.9L694.1 656.9L690.4 657.5L688.0 660.3L687.2 664.1L687.4 665.9L687.1 667.5L681.2 672.7L682.0 678.2L683.7 680.9L685.9 682.2L685.3 684.1L682.5 688.5L680.5 688.9L677.0 682.8L672.5 679.4L667.0 679.5L661.4 680.7L657.1 684.8L655.6 688.2L654.7 691.7L655.0 700.2L653.3 707.3L649.8 713.5L648.1 715.8L643.9 720.0L640.9 720.6L638.8 718.6L637.1 715.7L639.3 705.1L639.2 699.1L644.2 696.0L640.1 691.7L635.1 690.0L628.0 692.3L626.0 694.9L624.7 698.3L620.9 702.7L616.7 706.8L611.9 713.7L608.8 721.9L598.3 719.2L592.7 718.6L586.9 718.9L576.7 717.8L565.6 719.5L552.8 722.7L553.6 720.4L564.1 715.5L564.4 714.0L563.4 711.3L560.8 711.2L554.6 712.1L551.4 711.7L550.1 708.8L548.0 707.5L546.5 708.7L547.0 714.4L545.5 715.1L543.4 713.7L544.0 709.3L542.6 702.8L542.5 698.8L544.7 695.4L542.4 693.9L540.1 694.5L537.0 696.2L534.4 698.5L528.8 710.3L526.6 717.0L530.7 722.4L541.9 729.9L543.8 731.7L543.9 734.9L542.5 738.3L539.5 739.8L527.2 742.3L516.5 747.2L513.4 752.1L503.8 771.0L496.0 783.9L485.0 788.4L473.0 784.4L470.1 779.9L467.8 774.4L463.3 769.3L459.2 763.8L456.9 757.3L457.3 746.8L455.5 740.5L457.1 738.8L463.7 734.9L465.9 732.7L469.6 727.7L471.0 724.9L471.2 720.7L468.2 718.4L460.4 718.5L452.6 719.8L447.1 718.0L439.9 712.8L437.7 711.7L429.9 711.4L424.4 712.4L418.9 714.3L413.2 714.8L411.3 715.8L404.6 722.1L399.4 726.1L394.8 728.1L385.0 728.6L380.0 729.9L374.9 731.9L373.4 731.8L368.0 734.6L361.7 737.1L358.4 739.6L352.3 738.0L340.1 742.5L334.3 743.0L328.2 740.5L322.6 736.6L317.2 738.3L313.5 744.1L311.7 755.8L309.6 761.1L309.0 767.4L306.2 766.4L290.0 755.0L288.8 754.6L275.7 756.6L272.3 757.5L268.1 759.8L263.6 760.9L259.6 759.2L255.7 756.5L251.9 757.3L248.1 759.2L246.6 742.1L247.3 739.8L249.7 736.8L252.3 734.2L258.7 733.3L265.1 734.1L269.7 733.0L273.6 729.6L277.6 724.7L282.3 720.8L288.5 717.7L294.6 714.1L299.9 709.1L304.9 703.6L309.6 699.6L314.6 696.2L322.3 688.1L332.4 678.9L336.3 672.1L338.7 670.3L347.5 666.5L359.1 663.6L364.6 663.7L370.0 669.7L372.9 668.9L375.9 667.3L381.9 666.5L388.0 667.5L394.0 667.5L400.0 666.7L411.6 664.8L417.6 662.4L423.6 659.4L444.7 657.2L459.2 652.1L461.5 652.5L463.7 653.6L463.9 657.4L462.1 661.6L463.8 664.1L466.8 665.6L480.4 666.1L484.3 667.0L490.0 664.2L495.4 660.7L501.0 656.0L504.9 650.8L501.3 644.3L500.5 637.2L503.5 629.4L507.9 622.9L513.1 618.9L518.0 614.4L527.7 601.4L534.8 590.9L537.3 577.9L535.8 562.5L542.0 551.1L547.9 549.1L559.6 543.9L565.8 542.3L566.7 544.6L566.5 547.6L557.3 557.3L552.0 561.2L548.9 562.4L546.0 564.2L544.8 567.6L549.5 573.2L550.7 577.4L550.4 581.4L550.6 585.0L555.9 588.9L562.0 590.2L564.5 590.2L566.8 589.1L573.7 579.6L575.3 577.9L595.1 570.9L604.8 565.5L610.2 564.1L615.3 561.3L626.6 550.5L630.8 545.5L634.6 539.9L637.6 533.5L640.0 526.5L643.3 522.2L661.3 511.8L667.0 506.1L668.9 503.4L671.1 495.4L672.7 487.1L674.8 480.6L677.8 474.5L681.7 468.3L686.2 462.5L688.8 456.5L692.6 442.2L694.3 434.3L695.6 431.5L697.5 429.1L699.1 426.0L700.4 422.6L701.0 419.3L701.8 408.9L701.3 400.9L698.3 394.0L695.9 392.1L693.2 392.0L689.2 392.6L685.8 389.8L686.5 387.3L690.0 386.9L692.3 385.6L694.0 383.2L697.2 375.8L699.2 367.8L699.3 364.2L696.8 357.7L694.8 349.9L694.8 345.7L697.0 340.9L700.1 336.9L702.8 336.0L705.9 335.7L708.6 334.2L711.1 332.0L712.6 329.5L714.8 322.8L715.7 319.0L714.2 308.8L715.7 306.0L717.8 304.3L720.5 305.6L723.3 305.9L726.6 305.5L729.7 306.5L730.3 309.2L732.3 326.4L733.5 328.7L735.8 330.5L738.3 330.3L740.6 327.6L742.1 324.0L745.0 323.3L754.1 327.1L757.3 324.4L759.4 320.2L761.2 312.7L760.3 305.9L758.2 303.4L755.9 303.8L753.9 305.7L751.7 306.7L738.3 310.3L738.4 302.7L741.3 291.3L742.8 287.8L745.1 286.0L750.7 288.0L753.5 289.3L759.6 294.8Z", "M888.3 109.4L894.6 109.7L897.3 109.4L902.1 110.5L921.0 120.9L926.7 122.3L932.5 122.4L936.7 121.6L940.3 118.7L951.7 106.0L963.7 94.4L965.0 94.8L965.0 98.0L964.1 101.6L958.8 112.2L952.9 126.5L951.7 133.7L953.6 140.7L957.3 146.5L960.2 154.3L963.6 165.3L968.3 166.7L970.9 166.8L975.6 163.6L980.1 159.4L983.9 158.9L988.0 159.6L982.7 162.5L977.6 166.1L973.3 172.8L971.7 174.0L966.8 173.6L963.9 173.9L958.1 176.7L953.0 179.8L948.1 183.7L942.8 185.8L937.1 186.3L928.4 189.5L922.7 189.7L912.0 186.9L906.8 187.7L895.5 193.9L885.3 202.9L876.3 213.0L868.8 225.1L865.7 231.4L863.9 238.4L863.7 243.1L863.0 247.5L861.3 250.6L859.2 253.1L853.0 251.7L842.8 245.3L823.0 235.9L802.2 221.6L790.5 214.3L768.4 216.5L747.5 230.3L745.7 229.1L737.7 219.7L733.8 215.9L729.2 214.8L725.8 215.0L722.4 215.7L717.7 220.5L716.0 224.0L714.7 228.0L714.2 230.8L714.8 233.5L719.3 239.7L724.8 244.4L727.3 245.2L732.6 244.9L735.0 245.4L743.9 254.6L753.6 263.3L755.7 266.2L752.1 269.2L748.2 270.7L743.6 270.3L739.1 269.1L731.3 265.5L728.0 268.6L722.9 275.0L720.0 281.9L717.7 285.1L712.0 289.3L706.0 291.5L702.8 290.8L700.4 288.1L699.1 285.0L698.4 281.3L699.7 273.4L702.8 266.3L704.0 259.0L701.4 248.7L699.8 246.5L693.4 240.5L690.4 234.6L689.7 227.2L690.1 223.1L691.7 214.1L693.2 209.6L696.2 208.1L699.4 207.2L704.3 203.9L709.7 199.7L714.9 194.9L720.1 189.0L722.7 182.5L718.3 174.5L717.4 169.8L718.1 165.3L722.8 162.9L727.6 164.7L737.3 171.3L739.2 171.9L745.9 172.2L755.1 173.6L760.4 173.3L762.9 172.3L766.8 166.9L768.7 159.9L768.0 151.0L768.0 142.0L770.4 134.8L778.0 123.1L780.2 116.1L781.0 99.2L783.8 91.8L786.0 84.1L787.0 67.8L783.9 52.0L780.8 44.3L777.1 37.0L777.7 29.9L780.6 23.4L780.7 21.4L781.4 19.7L786.8 18.4L789.4 17.0L791.8 13.9L794.7 12.0L796.9 13.8L798.6 17.1L806.3 25.0L818.5 39.1L832.8 60.6L841.7 71.0L851.2 80.4L861.8 90.0L872.8 98.3L879.9 102.2L885.1 108.4L888.3 109.4Z", "M260.8 781.5L267.4 783.3L270.3 783.4L272.9 782.6L276.8 780.2L281.0 778.5L284.0 779.4L286.6 781.5L288.0 784.4L287.4 787.4L282.6 794.0L278.8 801.0L287.7 802.3L296.6 802.2L294.5 806.5L294.2 810.3L296.9 812.0L299.2 814.5L298.6 816.6L297.3 818.8L302.1 822.0L301.8 824.2L300.6 826.5L288.4 841.3L284.9 848.8L282.4 857.0L280.1 863.0L278.4 869.2L277.2 876.0L274.9 882.9L275.7 889.0L274.9 895.3L268.8 910.8L264.5 910.5L259.0 908.6L255.6 908.9L253.8 912.4L257.0 919.4L247.2 927.8L236.5 933.4L236.4 930.8L237.4 928.8L239.0 927.2L240.1 925.2L241.7 918.7L240.9 912.0L237.7 903.7L237.4 900.7L239.7 899.5L241.2 899.2L242.0 898.0L242.0 895.3L241.0 893.2L237.9 892.6L235.0 892.5L232.9 895.6L230.1 901.6L228.7 907.6L229.3 910.9L230.6 913.8L234.5 918.8L233.3 921.7L231.7 923.9L217.9 918.8L214.9 918.4L212.4 917.3L209.8 910.6L215.4 908.9L217.1 908.1L217.7 906.0L218.5 899.3L215.8 893.8L213.6 891.8L211.8 889.6L213.0 884.9L212.2 879.0L212.1 870.8L213.1 869.3L218.3 867.7L222.1 863.2L225.4 858.2L230.3 849.3L234.3 839.7L230.4 839.3L227.2 837.5L230.7 832.9L229.6 827.2L224.3 820.1L221.4 811.8L216.7 808.1L214.3 806.7L211.3 808.7L208.8 811.0L211.1 816.5L210.8 821.3L211.2 826.0L213.5 826.3L216.4 825.1L218.7 826.0L220.0 828.5L220.4 831.7L219.4 834.9L217.3 836.4L214.7 836.3L212.1 834.6L210.0 832.1L205.2 830.8L200.0 833.7L195.2 839.6L191.0 842.6L193.0 838.2L193.9 833.5L191.9 830.1L187.1 824.6L186.0 821.4L185.7 817.5L186.6 813.7L191.5 818.1L194.0 823.6L197.6 826.0L202.1 826.0L198.6 818.0L197.4 815.9L192.5 812.3L185.9 806.2L181.7 803.2L183.1 796.9L185.6 795.6L187.7 795.9L194.8 798.2L195.4 795.0L194.4 793.3L193.8 791.3L198.5 788.6L206.1 786.3L207.6 785.2L209.0 782.9L210.8 781.7L216.1 781.8L220.6 779.6L224.3 773.6L225.2 770.4L226.5 767.6L235.7 762.8L238.0 762.1L244.1 762.7L249.8 765.4L252.5 771.1L255.0 777.3L260.8 781.5Z", "M418.7 742.4L425.5 744.9L432.6 744.2L432.5 755.1L433.4 758.8L435.4 762.1L434.4 766.8L437.6 768.5L428.2 773.9L419.6 781.1L416.1 786.0L413.0 791.2L411.1 796.7L409.9 802.6L407.1 800.3L398.9 790.7L393.7 788.0L385.3 786.6L382.7 786.9L365.5 795.9L363.2 802.5L358.5 812.3L356.3 815.6L353.9 816.5L352.1 818.2L350.2 826.6L344.9 831.7L341.6 831.9L336.1 830.5L333.6 831.3L336.9 823.0L331.6 822.0L326.3 822.2L326.1 816.8L322.9 813.7L325.3 809.8L325.4 806.5L326.8 804.7L327.3 802.1L327.1 799.9L323.8 799.2L321.8 797.6L322.2 791.7L320.3 791.5L315.7 792.5L306.0 797.1L303.3 797.1L307.4 793.9L316.0 789.4L319.9 786.8L328.3 779.7L333.6 776.3L336.4 770.2L337.2 766.6L339.0 763.4L340.6 758.2L343.4 756.5L348.1 752.0L350.8 752.5L353.9 757.9L358.0 762.1L360.9 761.7L366.1 759.6L368.7 759.1L374.7 759.4L380.2 756.7L382.4 753.6L383.2 749.7L381.2 743.1L383.8 743.8L386.4 743.5L392.3 739.4L398.4 736.9L404.7 736.3L411.8 738.6L418.7 742.4Z", "M616.5 523.5L611.7 523.7L610.6 523.1L613.4 521.5L613.7 518.9L615.4 514.3L615.3 512.9L611.6 512.7L611.8 507.4L614.6 502.2L622.3 494.0L624.4 492.4L624.7 496.0L622.3 504.5L621.9 507.6L627.9 508.2L624.0 518.4L616.5 523.5Z", "M206.6 862.6L202.7 864.7L202.2 862.7L200.5 861.8L203.3 859.0L203.2 857.7L201.5 855.8L203.5 848.6L203.0 845.5L210.8 844.3L212.2 847.2L212.4 856.1L206.6 862.6Z", "M447.2 740.5L441.8 745.6L437.2 745.2L434.8 742.9L434.1 740.1L438.5 735.7L442.3 729.4L445.8 726.6L448.6 725.0L450.8 725.1L445.9 733.9L447.2 740.5Z"], "korea": ["M35.5 526.1L37.0 524.9L37.1 523.2L37.1 517.6L41.5 513.7L47.6 505.7L50.7 501.3L54.1 497.2L58.1 494.4L62.1 493.1L68.2 492.6L80.1 493.1L82.4 492.6L90.6 492.2L92.6 492.9L98.6 493.4L105.2 492.9L108.5 491.7L111.6 489.7L114.3 486.0L117.1 479.3L120.1 473.9L121.8 472.9L134.0 501.2L145.6 519.5L155.4 532.6L169.5 557.8L173.6 571.2L174.0 579.5L176.4 590.9L174.4 597.4L175.0 607.7L174.1 612.9L172.3 616.8L172.3 624.2L172.8 628.2L172.9 633.4L174.0 635.5L175.6 636.2L178.2 634.3L181.3 633.5L180.7 639.8L177.0 655.7L173.7 667.3L169.2 677.4L163.5 686.5L156.7 690.1L151.9 691.4L142.7 691.9L135.1 690.3L128.6 691.4L126.0 693.3L124.0 696.6L125.5 701.7L125.3 705.4L122.5 705.1L117.0 702.9L110.8 702.6L107.9 701.6L105.1 696.2L102.1 696.4L97.0 699.6L89.1 700.3L86.3 702.0L85.4 704.2L86.5 707.0L90.5 710.7L89.1 714.4L85.0 716.3L81.7 711.7L79.6 707.2L77.3 707.0L73.7 708.2L73.0 713.1L74.7 716.4L77.4 720.2L73.6 724.6L72.5 727.7L69.8 729.9L62.3 725.0L63.3 721.4L66.6 718.0L67.0 714.5L65.9 712.4L55.2 721.3L48.6 731.4L45.0 730.7L43.6 728.1L41.5 727.0L34.3 733.5L33.0 738.7L30.4 738.9L29.3 736.7L29.2 732.0L27.9 728.1L20.5 722.3L17.2 717.3L19.0 714.5L25.1 716.0L30.1 715.8L29.1 713.4L27.5 712.3L30.8 710.9L33.5 708.2L31.2 707.4L27.8 709.0L24.9 708.2L23.8 701.6L20.3 694.8L18.5 688.2L21.9 684.4L23.7 678.5L26.9 669.9L28.5 667.1L32.9 665.1L34.5 662.8L32.1 661.7L28.2 660.7L28.3 658.2L30.9 656.8L33.9 654.1L39.6 650.8L41.4 644.4L39.7 642.9L36.2 641.4L37.0 638.2L38.4 635.7L37.9 634.3L33.7 630.2L30.8 626.4L31.7 622.1L31.0 615.6L31.4 610.2L31.2 607.2L29.2 600.6L28.2 593.9L25.5 594.8L23.3 596.5L15.5 594.1L13.0 594.0L12.0 589.0L14.8 582.9L21.5 577.5L25.3 576.8L28.2 574.4L32.7 573.7L38.1 577.3L43.0 578.1L45.6 584.4L47.3 585.8L47.6 583.4L51.6 580.7L52.5 578.6L51.7 577.5L47.1 576.4L43.1 568.5L42.5 565.0L41.1 562.8L43.3 556.5L38.6 549.3L36.3 547.0L36.6 540.5L34.2 536.4L32.8 534.1L32.0 530.2L32.7 528.4L34.8 527.7L35.5 526.1Z", "M20.3 804.0L18.0 805.3L16.0 804.5L15.4 803.9L12.9 800.5L12.3 798.8L13.9 795.4L20.8 789.9L38.5 784.6L41.7 784.4L48.7 786.7L50.2 790.9L49.0 794.6L47.3 797.0L39.2 801.1L32.9 803.1L20.3 804.0Z"]}, "cities": [{"id": "tokyo", "label": "Tokyo", "x": 687.1, "y": 656.1, "stage": "tokyo1"}, {"id": "yufuin", "label": "Yufuin", "x": 270.0, "y": 801.6, "stage": "yufuin"}, {"id": "fukuoka", "label": "Fukuoka", "x": 222.4, "y": 782.2, "stage": "fukuoka"}, {"id": "busan", "label": "Busan", "x": 156.6, "y": 686.7, "stage": "busan"}, {"id": "hiroshima", "label": "Hiroshima", "x": 324.3, "y": 734.6, "stage": "hiroshima"}, {"id": "okayama", "label": "Okayama", "x": 396.9, "y": 718.4, "stage": "okayama"}, {"id": "osaka", "label": "Osaka", "x": 475.5, "y": 716.1, "stage": "osaka"}, {"id": "haneda", "label": "Haneda", "x": 687.7, "y": 664.2, "stage": "tokyo2"}], "landmarks": [{"id": "kamakura", "label": "Kamakura", "x": 676.1, "y": 678.2, "stage": "tokyo1"}, {"id": "mitaka", "label": "Mitaka", "x": 676.8, "y": 655.2, "stage": "tokyo1"}, {"id": "yomiuriland", "label": "PokéPark", "x": 674.6, "y": 659.4, "stage": "tokyo1"}, {"id": "kuju", "label": "Kujū", "x": 264.5, "y": 812.3, "stage": "yufuin"}, {"id": "otsurihashi", "label": "Ōtsurihashi", "x": 262.2, "y": 806.2, "stage": "yufuin"}, {"id": "kurokawa", "label": "Kurokawa", "x": 253.6, "y": 812.5, "stage": "yufuin"}, {"id": "kusasenri", "label": "Kusasenri", "x": 254.7, "y": 824.0, "stage": "yufuin"}, {"id": "itoshima", "label": "Itoshima", "x": 211.9, "y": 778.9, "stage": "yufuin"}, {"id": "kora", "label": "Kōra Taisha", "x": 230.1, "y": 800.4, "stage": "yufuin"}, {"id": "dazaifu", "label": "Dazaifu", "x": 229.0, "y": 786.7, "stage": "fukuoka"}, {"id": "gamcheon", "label": "Gamcheon", "x": 153.4, "y": 691.6, "stage": "busan"}, {"id": "yonggungsa", "label": "Yonggungsa", "x": 164.0, "y": 686.1, "stage": "busan"}, {"id": "taejongdae", "label": "Taejongdae", "x": 157.2, "y": 694.4, "stage": "busan"}, {"id": "miyajima", "label": "Miyajima", "x": 317.6, "y": 740.0, "stage": "hiroshima"}, {"id": "kurashiki", "label": "Kurashiki", "x": 389.6, "y": 722.6, "stage": "okayama"}, {"id": "himeji", "label": "Himeji", "x": 434.9, "y": 708.7, "stage": "osaka"}, {"id": "kyoto", "label": "Kyoto", "x": 488.7, "y": 696.8, "stage": "osaka"}, {"id": "nara", "label": "Nara", "x": 490.5, "y": 716.6, "stage": "osaka"}, {"id": "usj", "label": "USJ", "x": 472.0, "y": 717.8, "stage": "osaka"}]};
 /* MAP:END */
 
 const mapSvg   = document.getElementById("mapSvg");
@@ -1164,7 +1275,9 @@ function freeRect(){
   } else {
     if(shown(mapOverview))  top    = Math.max(top, box(mapOverview).bottom);
     if(shown(lodgingCard))  top    = Math.max(top, box(lodgingCard).bottom);
-    if(shown(stageSheet))   bottom = Math.min(bottom, sheetTop());
+    /* Plein écran, la fiche ne laisse aucune bande : la retenir donnerait un
+       cadre retourné (bas au-dessus du haut) et une visée absurde. */
+    if(shown(stageSheet) && sheetMode !== "full") bottom = Math.min(bottom, sheetTop());
   }
   return {left, right, top, bottom, fw, fh};
 }
@@ -1493,11 +1606,27 @@ const mapsUrlFor = s => "https://www.google.com/maps/search/?api=1&query=" + enc
 const sheetGrab     = document.getElementById("sheetGrab");
 const sheetHead     = document.getElementById("sheetHead");
 const dayHead       = document.getElementById("dayHead");
+const sheetFoot     = document.getElementById("sheetFoot");
+const footPrev      = document.getElementById("footPrev");
+const footNext      = document.getElementById("footNext");
+const footPrevKind  = document.getElementById("footPrevKind");
+const footNextKind  = document.getElementById("footNextKind");
+const footPrevName  = document.getElementById("footPrevName");
+const footNextName  = document.getElementById("footNextName");
 const lodgingToggle = document.getElementById("lodgingToggle");
+const mapTopBar     = document.querySelector(".map-top");
 
 let lodgingOpen = true;    /* la carte logement est-elle dépliée */
-let folded = false;        /* la fiche d'étape est-elle réduite à son en-tête */
 let openDay = null;        /* {si, di} du jour ouvert dans le second volet */
+
+/* La fiche d'étape a trois positions, dans cet ordre de hauteur : réduite à son
+   en-tête, ouverte à la hauteur de son contenu, ou plein écran. Le plein écran
+   n'existe que sur téléphone — en grand écran la fiche est déjà sur le côté et
+   ne recouvre rien, il n'y a rien à dégager. */
+const MODES = ["folded", "normal", "full"];
+const wide = ()=> matchMedia("(min-width:760px)").matches;
+const topMode = ()=> wide() ? 1 : 2;
+let sheetMode = "normal";
 
 /* Sur un téléphone, logement + fiche couvrent la moitié de l'écran. Les deux se
    replient donc, et la carte se recentre ensuite sur ce qui reste visible. */
@@ -1528,28 +1657,92 @@ function setLodging(open){
 lodgingToggle.addEventListener("click", ()=> setLodging(!lodgingOpen));
 lodgingToggle.classList.toggle("on", lodgingOpen);
 
-/* La hauteur de la fiche est posée en pixels : c'est ce qui permet d'animer le
-   passage liste → programme (deux volets de hauteurs différentes) et le repli,
-   avec la même transition. */
-function sizeSheet(){
+/* Hauteurs de référence du volet courant. `natural` se mesure hors plein écran :
+   celui-ci remplace la hauteur du volet par celle de l'écran et referme la
+   gouttière, si bien que mesuré tel quel il donnerait la position « ouverte »
+   pour égale au plein écran, et la fiche ne pourrait plus en redescendre. On
+   défait donc les deux le temps de la lecture — synchrone, rien n'est peint
+   entre les deux. */
+function paneHeights(){
   const pane = openDay ? paneDay : paneList;
+  const grab = sheetGrab.offsetHeight;
   const head = pane.querySelector(".head").offsetHeight;
-  sheetInner.style.height =
-    (sheetGrab.offsetHeight + (folded ? head : pane.offsetHeight)) + "px";
+  const full = stageSheet.classList.contains("full");
+  const lift = mapView.style.getPropertyValue("--lift");
+  if(full) stageSheet.classList.remove("full");
+  mapView.style.setProperty("--lift", "0");
+  const natural = pane.offsetHeight;
+  if(full) stageSheet.classList.add("full");
+  mapView.style.setProperty("--lift", lift || "0");
+  return {grab, head, natural};
 }
 
-function setFolded(v){
-  folded = v;
-  stageSheet.classList.toggle("folded", v);
+/* Hauteur du plein écran : tout l'écran sauf la barre du haut, que la fiche
+   laisse dépasser pour garder le bouton Infos accessible. */
+const fullHeight = ()=> frameSize().h - mapTopBar.getBoundingClientRect().height;
+
+/* Les trois positions, en pixels. Le plein écran ne descend jamais en dessous
+   de la hauteur ouverte : sur un petit écran très rempli, les deux se rejoignent
+   et le geste n'a alors plus qu'un cran. */
+function snapPoints(){
+  const m = paneHeights();
+  const normal = m.grab + m.natural;
+  return {
+    folded: m.grab + m.head,
+    normal,
+    full: wide() ? normal : Math.max(fullHeight(), normal)
+  };
+}
+
+/* La hauteur de la fiche est posée en pixels : c'est ce qui permet d'animer le
+   passage liste → programme (deux volets de hauteurs différentes), le repli et
+   le plein écran avec la même transition. */
+function sizeSheet(){
+  /* Une rotation peut faire passer en grand écran alors qu'on était déplié. */
+  if(sheetMode === "full" && wide()) markSheet("normal");
+  const m = paneHeights();
+  if(sheetMode === "full"){
+    const h = Math.max(fullHeight(), m.grab + m.natural);
+    sheetInner.style.height = h + "px";
+    /* Ce qui reste au volet une fois la poignée, l'en-tête et le pied servis. */
+    stageSheet.style.setProperty("--pane-h",
+      Math.max(0, h - m.grab - m.head - sheetFoot.offsetHeight) + "px");
+  } else {
+    sheetInner.style.height =
+      (m.grab + (sheetMode === "folded" ? m.head : m.natural)) + "px";
+    stageSheet.style.removeProperty("--pane-h");
+  }
+}
+
+/* Poser l'état sans toucher aux hauteurs : showDay/closeDay enchaînent déjà sur
+   leur propre sizeSheet(), et le glissement pose les siennes au doigt. */
+function markSheet(mode){
+  if(wide() && mode === "full") mode = "normal";
+  sheetMode = mode;
+  stageSheet.classList.toggle("folded", mode === "folded");
+  stageSheet.classList.toggle("full", mode === "full");
+  /* La barre du haut se pose sur la fiche : c'est à la vue de le savoir, elle
+     est au-dessus de la fiche dans le document et hors de sa portée. */
+  mapView.classList.toggle("sheet-open", mode === "full");
+  mapView.style.setProperty("--lift", mode === "full" ? "1" : "0");
+}
+
+function setSheet(mode){
+  markSheet(mode);
   sizeSheet();
   recentre();
 }
+const stepMode = (from, dir)=>
+  MODES[Math.min(topMode(), Math.max(0, MODES.indexOf(from) + dir))];
 
 /* Replier un panneau agrandit la bande libre : la carte s'y recentre, sauf si
    l'utilisateur a lui-même déplacé la vue — on ne lui reprend pas la main.
    Le vol part tout de suite : freeRect lit la hauteur *visée* de la fiche, pas
-   celle qu'elle a au milieu de sa transition. */
+   celle qu'elle a au milieu de sa transition. Plein écran, il n'y a plus de
+   bande libre à viser : on laisse la carte où elle est pour la retrouver
+   intacte au repli. */
 function recentre(){
+  if(sheetMode === "full") return;
   if(!userMoved) flyTo(focusView(), {pullback:false});
 }
 
@@ -1562,7 +1755,9 @@ function dayLabel(day){
 
 function showStageSheet(stageId){
   const idx = STAGES.findIndex(x=>x.id === stageId);
-  if(idx < 0){ stageSheet.classList.remove("show"); return; }
+  /* Rendre la main à la carte remet la fiche à plat : la retrouver plein écran
+     au retour d'une vue d'ensemble n'aurait aucun sens. */
+  if(idx < 0){ stageSheet.classList.remove("show"); markSheet("normal"); return; }
   const s = STAGES[idx];
   sheetName.textContent = `${s.emoji} ${s.name}`;
   sheetMeta.textContent = `${s.dates} · ${s.nights}`;
@@ -1631,15 +1826,22 @@ function showDay(si, di, opts){
         </div>`).join("")
     : `<div class="day-block"><div class="content"><div class="desc">${day.summary}</div></div></div>`;
   dayBodyEl.querySelectorAll(".see").forEach(b=>{
-    b.addEventListener("click", ()=> setPlace(b.dataset.place));
+    b.addEventListener("click", ()=>{
+      /* « Voir », c'est demander la carte : plein écran, la fiche redescend
+         d'abord, sinon le vol se jouerait derrière elle. Les hauteurs sont
+         posées avant le vol pour qu'il vise déjà la bande libre à venir. */
+      if(sheetMode === "full"){ markSheet("normal"); sizeSheet(); }
+      setPlace(b.dataset.place);
+    });
   });
   dayBodyEl.scrollTop = 0;
 
   sheetDays.querySelectorAll(".d").forEach(b=>{
     b.classList.toggle("on", +b.dataset.day === di);
   });
-  folded = false;
-  stageSheet.classList.remove("folded");
+  /* Repliée, la fiche n'afficherait pas le programme qu'on vient d'ouvrir. En
+     plein écran on y reste : c'est justement la position de lecture. */
+  if(sheetMode === "folded") markSheet("normal");
   stageSheet.classList.add("day-open");
   paneDay.setAttribute("aria-hidden", "false");
   paneList.setAttribute("aria-hidden", "true");
@@ -1663,8 +1865,7 @@ function closeDay(opts){
   openDay = null;
   /* Revenir aux jours alors que la fiche est repliée n'afficherait rien :
      on la redéplie, c'est bien la liste qu'on est venu rechercher. */
-  folded = false;
-  stageSheet.classList.remove("folded");
+  if(sheetMode === "folded") markSheet("normal");
   stageSheet.classList.remove("day-open");
   paneDay.setAttribute("aria-hidden", "true");
   paneList.setAttribute("aria-hidden", "false");
@@ -1682,32 +1883,88 @@ document.getElementById("dayBack").addEventListener("click", e=>{
   else closeDay();
 });
 
-/* Replier / déplier : au clic sur l'en-tête, ou en le tirant vers le bas.
-   Le geste ne descend pas dans la liste, qui doit rester défilable. */
+/* Changer de position : au clic sur l'en-tête, ou en le tirant. Vers le bas on
+   replie, vers le haut on agrandit jusqu'au plein écran — la fiche suit le
+   doigt pendant tout le geste et s'accroche à la position la plus proche au
+   relâché. Le geste ne descend pas dans la liste, qui doit rester défilable. */
 [sheetGrab, sheetHead, dayHead].forEach(h=>{
   let start = null, swallow = false;
+
+  const stop = ()=>{
+    stageSheet.classList.remove("dragging");
+    start = null;
+  };
+
   h.addEventListener("click", e=>{
     /* Un glissement produit aussi un clic : sans ce garde-fou, il rebasculerait
-       aussitôt le repli que le geste vient de décider. */
+       aussitôt la position que le geste vient de décider. */
     if(swallow){ swallow = false; return; }
     if(e.target.closest(".icon-btn")) return;
-    setFolded(!folded);
+    /* Le clic ne fait que l'aller-retour en-tête ↔ contenu : le plein écran
+       reste au geste, pour qu'un appui distrait n'y bascule jamais. */
+    setSheet(sheetMode === "normal" ? "folded" : "normal");
   });
+
   h.addEventListener("pointerdown", e=>{
     /* Pas de capture sur un bouton de l'en-tête : elle redirigerait son clic. */
     if(e.target.closest(".icon-btn")){ start = null; return; }
-    start = {y:e.clientY};
+    start = {y:e.clientY, h:sheetInner.getBoundingClientRect().height,
+             mode:sheetMode, snap:snapPoints(), live:false};
     h.setPointerCapture(e.pointerId);
   });
-  h.addEventListener("pointerup", e=>{
+
+  h.addEventListener("pointermove", e=>{
     if(!start) return;
     const dy = e.clientY - start.y;
-    start = null;
-    if(Math.abs(dy) < 24) return;          /* simple appui : le clic s'en charge */
+    /* Quelques pixels de marge : un appui n'est jamais parfaitement immobile,
+       et passer en `dragging` dès le premier frémissement ferait sauter la
+       fiche sous un simple tap. */
+    if(!start.live){
+      if(Math.abs(dy) < 6) return;
+      start.live = true;
+      stageSheet.classList.add("dragging");
+      /* Mesuré une fois `dragging` posé : c'est cette classe qui fait exister le
+         pied, dont la place doit être décomptée comme en plein écran. */
+      const pane = openDay ? paneDay : paneList;
+      start.chrome = sheetGrab.offsetHeight
+        + pane.querySelector(".head").offsetHeight + sheetFoot.offsetHeight;
+    }
+    const s = start.snap;
+    const px = Math.min(s.full, Math.max(s.folded, start.h - dy));
+    sheetInner.style.height = px + "px";
+    stageSheet.style.setProperty("--pane-h", Math.max(0, px - start.chrome) + "px");
+    /* Au-delà de sa hauteur naturelle, la fiche descend aussi vers le bas de
+       l'écran : les deux mouvements ensemble la mènent bord à bord. */
+    const span = s.full - s.normal;
+    const lift = span > 0 ? Math.min(1, Math.max(0, (px - s.normal) / span)) : 0;
+    mapView.style.setProperty("--lift", lift.toFixed(3));
+  });
+
+  h.addEventListener("pointerup", e=>{
+    if(!start) return;
+    const {y, mode, snap, live} = start;
+    const dy = e.clientY - y;
+    stop();
+    if(!live){ return; }                  /* simple appui : le clic s'en charge */
     swallow = true;
     /* Au doigt, le clic ne suit pas toujours : on ne garde pas le verrou. */
     setTimeout(()=>{ swallow = false; }, 400);
-    setFolded(dy > 0);
+    const px = parseFloat(sheetInner.style.height) || snap[mode];
+    /* Position la plus proche… sauf geste franc : un coup net vers le haut
+       ouvre en grand même s'il n'a pas parcouru la moitié du chemin. */
+    let next = MODES.reduce((best, m)=>
+      Math.abs(snap[m] - px) < Math.abs(snap[best] - px) ? m : best, "folded");
+    if(Math.abs(dy) > 56 && next === mode) next = stepMode(mode, dy > 0 ? -1 : 1);
+    setSheet(next);
+  });
+
+  /* Un geste interrompu (appel, retour système) laisserait la fiche à une
+     hauteur intermédiaire : on la remet où elle était partie. */
+  h.addEventListener("pointercancel", ()=>{
+    if(!start) return;
+    const mode = start.mode;
+    stop();
+    setSheet(mode);
   });
 });
 
@@ -1791,12 +2048,43 @@ function updateNav(){
     const p = dayPos();
     mapPrev.disabled = p <= 0;
     mapNext.disabled = p >= FLAT_DAYS.length - 1;
+    updateFoot();
     return;
   }
   const i = MAP_ORDER.indexOf(currentStage);
   mapPrev.disabled = i <= 0;
   mapNext.disabled = i >= MAP_ORDER.length - 1;
+  updateFoot();
 }
+
+/* Le pied du plein écran dit *où* mènent les flèches, là où le HUD se contente
+   de deux chevrons : sur une fiche qui remplit l'écran, la carte ne donne plus
+   ce repère. Il suit la même règle de contexte que le HUD et délègue le
+   déplacement à ses boutons, pour n'avoir qu'un seul chemin à maintenir. */
+function footTarget(dir){
+  if(openDay){
+    const t = FLAT_DAYS[dayPos() + dir];
+    if(!t) return null;
+    const s = STAGES[t.si];
+    return {kind: dir < 0 ? "jour précédent" : "jour suivant",
+            name:`${s.emoji} ${s.days[t.di].d}`};
+  }
+  const s = STAGES.find(x=>x.id === MAP_ORDER[MAP_ORDER.indexOf(currentStage) + dir]);
+  return s ? {kind: dir < 0 ? "étape précédente" : "étape suivante",
+              name:`${s.emoji} ${s.name}`} : null;
+}
+
+function updateFoot(){
+  [[-1, footPrev, footPrevKind, footPrevName],
+   [ 1, footNext, footNextKind, footNextName]].forEach(([dir, btn, kind, name])=>{
+    const t = footTarget(dir);
+    btn.disabled = !t;
+    kind.textContent = t ? t.kind : "";
+    name.textContent = t ? t.name : "—";
+  });
+}
+footPrev.addEventListener("click", ()=> mapPrev.click());
+footNext.addEventListener("click", ()=> mapNext.click());
 
 function focusStage(id, opts){
   if(!cityByStage[id]) return;
@@ -1867,7 +2155,7 @@ mapRecenter.addEventListener("click", ()=>{
    même surface qui donne l'étape et qui donne la carte. */
 mapInfo.addEventListener("click", ()=>{
   if(!currentStage) return;
-  setFolded(!folded);
+  setSheet(sheetMode === "folded" ? "normal" : "folded");
 });
 
 addEventListener("keydown", e=>{
